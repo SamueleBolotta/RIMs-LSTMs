@@ -220,7 +220,9 @@ def get_config():
     parser.add_argument("--num_units", type=int, default=1, help="The number of independent mechanisms")
     parser.add_argument("--data_chunk_length", type=int, default=10,
                         help="Time length of chunks used to train a recurrent_policy")
-
+    parser.add_argument("--use_rims_policy", action='store_false', default=True, help="use a RIMs policy")
+    parser.add_argument("--use_lstm_policy", action='store_false', default=False, help='use an LSTM policy')
+    
     # optimizer parameters
     parser.add_argument("--lr", type=float, default=5e-4,
                         help='learning rate (default: 5e-4)')
