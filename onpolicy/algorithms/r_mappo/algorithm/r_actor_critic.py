@@ -28,6 +28,8 @@ class R_Actor(nn.Module, torch_ac.RecurrentACModel):
         self._use_policy_active_masks = args.use_policy_active_masks
         self._use_naive_recurrent_policy = args.use_naive_recurrent_policy
         self._use_recurrent_policy = args.use_recurrent_policy
+        self._use_rims_policy = args.use_rims_policy
+        self._use_lstm_policy = args.use_lstm_policy
         self._recurrent_N = args.recurrent_N
         self._num_units = args.num_units
         self.tpdv = dict(dtype=torch.float32, device=device)
@@ -155,6 +157,8 @@ class R_Critic(nn.Module, torch_ac.RecurrentACModel):
         self._use_orthogonal = args.use_orthogonal
         self._use_naive_recurrent_policy = args.use_naive_recurrent_policy
         self._use_recurrent_policy = args.use_recurrent_policy
+        self._use_rims_policy = args.use_rims_policy
+        self._use_lstm_policy = args.use_lstm_policy
         self._recurrent_N = args.recurrent_N
         self._use_popart = args.use_popart
         self._num_units = args.num_units
