@@ -7,9 +7,11 @@ from onpolicy.algorithms.utils.rnn import RNNLayer
 from onpolicy.algorithms.utils.act import ACTLayer
 from onpolicy.algorithms.utils.popart import PopArt
 from onpolicy.utils.util import get_shape_from_obs_space
+from onpolicy.algorithms.utils.RIM import RIMCell
+import torch_ac
 
 
-class R_Actor(nn.Module):
+class R_Actor(nn.Module, torch_ac.RecurrentACModel):
     """
     Actor network class for MAPPO. Outputs actions given observations.
     :param args: (argparse.Namespace) arguments containing relevant model information.
@@ -27,6 +29,7 @@ class R_Actor(nn.Module):
         self._use_naive_recurrent_policy = args.use_naive_recurrent_policy
         self._use_recurrent_policy = args.use_recurrent_policy
         self._recurrent_N = args.recurrent_N
+        self._num_units = args.num_units
         self.tpdv = dict(dtype=torch.float32, device=device)
 
         obs_shape = get_shape_from_obs_space(obs_space)
@@ -34,7 +37,10 @@ class R_Actor(nn.Module):
         self.base = base(args, obs_shape)
 
         if self._use_naive_recurrent_policy or self._use_recurrent_policy:
-            self.rnn = RNNLayer(self.hidden_size, self.hidden_size, self._recurrent_N, self._use_orthogonal)
+            if self._use_rims_policy:  
+                self.rnn = RIMCell(torch.device('cuda' if torch.cuda.is_available() else 'cpu'), self.hidden_size, self.hidden_size // self._num_units, self._num_units, 1, 'LSTM', input_value_size = 64, comm_value_size = self.hidden_size // self._num_units)
+            elif self._use_lstm_policy:
+                self.rnn = RNNLayer(self.hidden_size, self.hidden_size, self._recurrent_N, self._use_orthogonal)
 
         self.act = ACTLayer(action_space, self.hidden_size, self._use_orthogonal, self._gain)
 
@@ -63,7 +69,21 @@ class R_Actor(nn.Module):
         actor_features = self.base(obs)
 
         if self._use_naive_recurrent_policy or self._use_recurrent_policy:
-            actor_features, rnn_states = self.rnn(actor_features, rnn_states, masks)
+            if self._use_rims_policy:  
+                half = self.hidden_size // 2
+                ## RIMs
+                hidden = rnn_states[:, :self.hidden_size], rnn_states[:, :self.hidden_size]
+                hidden = list(hidden)
+                hidden[0] = hidden[0].view(hidden[0].size(0), self._num_units, -1) ## Hidden states
+                hidden[1] = hidden[0].view(hidden[1].size(0), self._num_units, -1) ## Cell states
+                actor_features = actor_features.unsqueeze(1) ## Input
+                ## Processing
+                hidden = self.rnn(actor_features, hidden[0], hidden[1])
+                hidden = list(hidden)
+                actor_features = hidden[0].view(hidden[0].size(0), -1)
+                rnn_states = hidden[1].view(hidden[1].size(0), 1, -1)
+            elif self._use_lstm_policy:
+                actor_features, rnn_states = self.rnn(actor_features, rnn_states, masks)
 
         actions, action_log_probs = self.act(actor_features, available_actions, deterministic)
 
@@ -94,9 +114,23 @@ class R_Actor(nn.Module):
             active_masks = check(active_masks).to(**self.tpdv)
 
         actor_features = self.base(obs)
-
+        
         if self._use_naive_recurrent_policy or self._use_recurrent_policy:
-            actor_features, rnn_states = self.rnn(actor_features, rnn_states, masks)
+            if self._use_rims_policy:  
+                half = self.hidden_size // 2
+                ## RIMs
+                hidden = rnn_states[:, :self.hidden_size], rnn_states[:, :self.hidden_size]
+                hidden = list(hidden)
+                hidden[0] = hidden[0].view(hidden[0].size(0), self._num_units, -1) ## Hidden states
+                hidden[1] = hidden[0].view(hidden[1].size(0), self._num_units, -1) ## Cell states
+                actor_features = actor_features.unsqueeze(1) ## Input
+                ## Processing
+                hidden = self.rnn(actor_features, hidden[0], hidden[1])
+                hidden = list(hidden)
+                actor_features = hidden[0].view(hidden[0].size(0), -1)
+                rnn_states = hidden[1].view(hidden[1].size(0), 1, -1)
+            elif self._use_lstm_policy:
+                actor_features, rnn_states = self.rnn(actor_features, rnn_states, masks)
 
         action_log_probs, dist_entropy = self.act.evaluate_actions(actor_features,
                                                                    action, available_actions,
@@ -107,7 +141,7 @@ class R_Actor(nn.Module):
         return action_log_probs, dist_entropy
 
 
-class R_Critic(nn.Module):
+class R_Critic(nn.Module, torch_ac.RecurrentACModel):
     """
     Critic network class for MAPPO. Outputs value function predictions given centralized input (MAPPO) or
                             local observations (IPPO).
@@ -123,6 +157,7 @@ class R_Critic(nn.Module):
         self._use_recurrent_policy = args.use_recurrent_policy
         self._recurrent_N = args.recurrent_N
         self._use_popart = args.use_popart
+        self._num_units = args.num_units
         self.tpdv = dict(dtype=torch.float32, device=device)
         init_method = [nn.init.xavier_uniform_, nn.init.orthogonal_][self._use_orthogonal]
 
@@ -131,7 +166,10 @@ class R_Critic(nn.Module):
         self.base = base(args, cent_obs_shape)
 
         if self._use_naive_recurrent_policy or self._use_recurrent_policy:
-            self.rnn = RNNLayer(self.hidden_size, self.hidden_size, self._recurrent_N, self._use_orthogonal)
+            if self._use_rims_policy:  
+                self.rnn = RIMCell(torch.device('cuda' if torch.cuda.is_available() else 'cpu'), self.hidden_size, self.hidden_size // self._num_units, self._num_units, 1, 'LSTM', input_value_size = 64, comm_value_size = self.hidden_size // self._num_units)
+            elif self._use_lstm_policy:
+                self.rnn = RNNLayer(self.hidden_size, self.hidden_size, self._recurrent_N, self._use_orthogonal)
 
         def init_(m):
             return init(m, init_method, lambda x: nn.init.constant_(x, 0))
@@ -158,8 +196,24 @@ class R_Critic(nn.Module):
         masks = check(masks).to(**self.tpdv)
 
         critic_features = self.base(cent_obs)
+        
         if self._use_naive_recurrent_policy or self._use_recurrent_policy:
-            critic_features, rnn_states = self.rnn(critic_features, rnn_states, masks)
+            if self._use_rims_policy:  
+                half = self.hidden_size // 2
+                ## RIMs
+                hidden = rnn_states[:, :self.hidden_size], rnn_states[:, :self.hidden_size]
+                hidden = list(hidden)
+                hidden[0] = hidden[0].view(hidden[0].size(0), self._num_units, -1) ## Hidden states
+                hidden[1] = hidden[0].view(hidden[1].size(0), self._num_units, -1) ## Cell states
+                critic_features = critic_features.unsqueeze(1) ## Input
+                ## Processing
+                hidden = self.rnn(critic_features, hidden[0], hidden[1])
+                hidden = list(hidden)
+                critic_features = hidden[0].view(hidden[0].size(0), -1)
+                rnn_states = hidden[1].view(hidden[1].size(0), 1, -1)
+            elif self._use_lstm_policy:
+                critic_features, rnn_states = self.rnn(critic_features, rnn_states, masks)
+                
         values = self.v_out(critic_features)
 
         return values, rnn_states
