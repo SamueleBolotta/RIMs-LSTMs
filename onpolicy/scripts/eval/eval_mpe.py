@@ -151,7 +151,7 @@ def main(args):
         from onpolicy.runner.separated.mpe_runner import MPERunner as Runner
 
     runner = Runner(config)
-    runner.eval100k()
+    runner.eval(100000)
     
     # post process
     envs.close()
