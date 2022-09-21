@@ -74,9 +74,6 @@ def main(args):
 
     assert (all_args.share_policy == True and all_args.scenario_name == 'simple_speaker_listener') == False, (
         "The simple_speaker_listener scenario can not use shared policy. Please check the config.py.")
-    assert all_args.use_eval, ("u need to set use_eval be True")
-    assert not (all_args.model_dir == None or all_args.model_dir == ""), ("set model_dir first")
-    
     # cuda
     if all_args.cuda and torch.cuda.is_available():
         print("choose to use gpu...")
