@@ -29,7 +29,6 @@ class R_Actor(nn.Module, torch_ac.RecurrentACModel):
         self._use_naive_recurrent_policy = args.use_naive_recurrent_policy
         self._use_recurrent_policy = args.use_recurrent_policy
         self._use_rims_policy_LSTM = args.use_rims_policy_LSTM
-        self._use_rims_policy_GRU = args.use_rims_policy_GRU
         self._use_lstm_policy = args.use_lstm_policy
         self._recurrent_N = args.recurrent_N
         self._num_units = args.num_units
@@ -159,7 +158,6 @@ class R_Critic(nn.Module, torch_ac.RecurrentACModel):
         self._use_naive_recurrent_policy = args.use_naive_recurrent_policy
         self._use_recurrent_policy = args.use_recurrent_policy
         self._use_rims_policy_LSTM = args.use_rims_policy_LSTM
-        self._use_rims_policy_GRU = args.use_rims_policy_GRU
         self._use_lstm_policy = args.use_lstm_policy
         self._recurrent_N = args.recurrent_N
         self._use_popart = args.use_popart
