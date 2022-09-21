@@ -28,7 +28,7 @@ class R_Actor(nn.Module, torch_ac.RecurrentACModel):
         self._use_policy_active_masks = args.use_policy_active_masks
         self._use_naive_recurrent_policy = args.use_naive_recurrent_policy
         self._use_recurrent_policy = args.use_recurrent_policy
-        self._use_rims_policy_LSTM = args.use_rims_policy_LSTM
+        self._use_rims_policy = args.use_rims_policy
         self._use_lstm_policy = args.use_lstm_policy
         self._recurrent_N = args.recurrent_N
         self._num_units = args.num_units
@@ -39,7 +39,7 @@ class R_Actor(nn.Module, torch_ac.RecurrentACModel):
         self.base = base(args, obs_shape)
 
         if self._use_naive_recurrent_policy or self._use_recurrent_policy:
-            if self._use_rims_policy_LSTM:  
+            if self._use_rims_policy:  
                 self.rnn = RIMCell(torch.device('cuda' if torch.cuda.is_available() else 'cpu'), self.hidden_size, self.hidden_size // self._num_units, self._num_units, 1, 'LSTM', input_value_size = 64, comm_value_size = self.hidden_size // self._num_units)
             elif self._use_lstm_policy:
                 self.rnn = RNNLayer(self.hidden_size, self.hidden_size, self._recurrent_N, self._use_orthogonal)
@@ -71,7 +71,7 @@ class R_Actor(nn.Module, torch_ac.RecurrentACModel):
         actor_features = self.base(obs)
 
         if self._use_naive_recurrent_policy or self._use_recurrent_policy:
-            if self._use_rims_policy_LSTM:  
+            if self._use_rims_policy:  
                 half = self.hidden_size // 2
                 ## RIMs
                 hidden = rnn_states[:, :self.hidden_size], rnn_states[:, :self.hidden_size]
@@ -118,7 +118,7 @@ class R_Actor(nn.Module, torch_ac.RecurrentACModel):
         actor_features = self.base(obs)
         
         if self._use_naive_recurrent_policy or self._use_recurrent_policy:
-            if self._use_rims_policy_LSTM:  
+            if self._use_rims_policy:  
                 half = self.hidden_size // 2
                 ## RIMs
                 hidden = rnn_states[:, :self.hidden_size], rnn_states[:, :self.hidden_size]
@@ -157,7 +157,7 @@ class R_Critic(nn.Module, torch_ac.RecurrentACModel):
         self._use_orthogonal = args.use_orthogonal
         self._use_naive_recurrent_policy = args.use_naive_recurrent_policy
         self._use_recurrent_policy = args.use_recurrent_policy
-        self._use_rims_policy_LSTM = args.use_rims_policy_LSTM
+        self._use_rims_policy = args.use_rims_policy
         self._use_lstm_policy = args.use_lstm_policy
         self._recurrent_N = args.recurrent_N
         self._use_popart = args.use_popart
@@ -170,7 +170,7 @@ class R_Critic(nn.Module, torch_ac.RecurrentACModel):
         self.base = base(args, cent_obs_shape)
         
         if self._use_naive_recurrent_policy or self._use_recurrent_policy:
-            if self._use_rims_policy_LSTM:  
+            if self._use_rims_policy:  
                 self.rnn = RIMCell(torch.device('cuda' if torch.cuda.is_available() else 'cpu'), self.hidden_size, self.hidden_size // self._num_units, self._num_units, 1, 'LSTM', input_value_size = 64, comm_value_size = self.hidden_size // self._num_units)
             elif self._use_lstm_policy:
                 self.rnn = RNNLayer(self.hidden_size, self.hidden_size, self._recurrent_N, self._use_orthogonal)
@@ -202,7 +202,7 @@ class R_Critic(nn.Module, torch_ac.RecurrentACModel):
         critic_features = self.base(cent_obs)
         
         if self._use_naive_recurrent_policy or self._use_recurrent_policy:
-            if self._use_rims_policy_LSTM:  
+            if self._use_rims_policy:  
                 half = self.hidden_size // 2
                 ## RIMs
                 hidden = rnn_states[:, :self.hidden_size], rnn_states[:, :self.hidden_size]
