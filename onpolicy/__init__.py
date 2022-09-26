@@ -1,4 +1,4 @@
-from onpolicy import algorithms, envs, runner, scripts, utils, config
+from onpolicy import algorithms, runner, scripts, utils, config
 
 
 __version__ = "0.1.0"
