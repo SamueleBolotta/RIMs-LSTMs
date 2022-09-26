@@ -151,7 +151,7 @@ class R_Critic(nn.Module, torch_ac.RecurrentACModel):
     :param cent_obs_space: (gym.Space) (centralized) observation space.
     :param device: (torch.device) specifies the device to run on (cpu/gpu).
     """
-    def __init__(self, args, cent_obs_space, device=torch.device("cpu")):
+    def __init__(self, args, obs_space, device=torch.device("cpu")):
         super(R_Critic, self).__init__()
         self.hidden_size = args.hidden_size
         self._use_orthogonal = args.use_orthogonal
@@ -165,9 +165,9 @@ class R_Critic(nn.Module, torch_ac.RecurrentACModel):
         self.tpdv = dict(dtype=torch.float32, device=device)
         init_method = [nn.init.xavier_uniform_, nn.init.orthogonal_][self._use_orthogonal]
 
-        cent_obs_shape = get_shape_from_obs_space(cent_obs_space)
-        base = CNNBase if len(cent_obs_shape) == 3 else MLPBase
-        self.base = base(args, cent_obs_shape)
+        obs_shape = get_shape_from_obs_space(obs_space)
+        base = CNNBase if len(obs_shape) == 3 else MLPBase
+        self.base = base(args, obs_shape)
         
         if self._use_naive_recurrent_policy or self._use_recurrent_policy:
             if self._use_rims_policy:  
@@ -185,21 +185,21 @@ class R_Critic(nn.Module, torch_ac.RecurrentACModel):
 
         self.to(device)
 
-    def forward(self, cent_obs, rnn_states, masks):
+    def forward(self, obs, rnn_states, masks):
         """
         Compute actions from the given inputs.
-        :param cent_obs: (np.ndarray / torch.Tensor) observation inputs into network.
+        :param obs: (np.ndarray / torch.Tensor) observation inputs into network.
         :param rnn_states: (np.ndarray / torch.Tensor) if RNN network, hidden states for RNN.
         :param masks: (np.ndarray / torch.Tensor) mask tensor denoting if RNN states should be reinitialized to zeros.
 
         :return values: (torch.Tensor) value function predictions.
         :return rnn_states: (torch.Tensor) updated RNN hidden states.
         """
-        cent_obs = check(cent_obs).to(**self.tpdv)
+        obs = check(obs).to(**self.tpdv)
         rnn_states = check(rnn_states).to(**self.tpdv)
         masks = check(masks).to(**self.tpdv)
 
-        critic_features = self.base(cent_obs)
+        critic_features = self.base(obs)
         
         if self._use_naive_recurrent_policy or self._use_recurrent_policy:
             if self._use_rims_policy:  
