@@ -96,12 +96,11 @@ def main(args):
     np.random.seed(all_args.seed)
 
     # env init
+    from pettingzoo.mpe import simple_spread_v2    
     envs = simple_spread_v2.env(N=3, local_ratio=0.5, max_cycles=25, continuous_actions=False)
-    eval_envs = simple_spread_v2.env(N=3, local_ratio=0.5, max_cycles=25, continuous_actions=False) if all_args.use_eval else None
+    eval_envs = simple_spread_v2.env(N=3, local_ratio=0.5, max_cycles=25, continuous_actions=False)
     num_agents = all_args.num_agents
-    
-    print(envs)
-    
+        
     config = {
         "all_args": all_args,
         "envs": envs,
