@@ -74,7 +74,7 @@ class R_Actor(nn.Module, torch_ac.RecurrentACModel):
         actor_features = self.base(obs)
 
         if self._use_naive_recurrent_policy or self._use_recurrent_policy:
-            if self._use_rims_policy:  
+            if self._use_rims_policy_LSTM or self._use_rims_policy_GRU:  
                 half = self.hidden_size // 2
                 ## RIMs
                 hidden = rnn_states[:, :self.hidden_size], rnn_states[:, :self.hidden_size]
@@ -208,7 +208,7 @@ class R_Critic(nn.Module, torch_ac.RecurrentACModel):
         critic_features = self.base(obs)
         
         if self._use_naive_recurrent_policy or self._use_recurrent_policy:
-            if self._use_rims_policy:  
+            if self._use_rims_policy_LSTM or self._use_rims_policy_GRU:  
                 half = self.hidden_size // 2
                 ## RIMs
                 hidden = rnn_states[:, :self.hidden_size], rnn_states[:, :self.hidden_size]
