@@ -10,6 +10,30 @@ from onpolicy.utils.util import update_linear_schedule
 from onpolicy.runner.separated.base_runner import Runner
 import imageio
 
+def topetzoo(agent_id):
+    if agent_id == 0:
+        agent_id = 'agent_0'
+    elif agent_id == 1:
+        agent_id = 'agent_1'
+    elif agent_id == 2:
+        agent_id = 'agent_2'
+    return agent_id
+
+def before_pz(actions):
+    actions_step = {"agent_0": int(actions[0][0]), "agent_1": int(actions[0][1]), "agent_2": int(actions[0][2])}
+    return actions_step
+
+def after_pz(obs, rewards, dones, truncations, infos):
+    obs = np.array(list(obs.values()))
+    rewards = np.array(list(rewards.values()))
+    dones = np.array(list(dones.values()))
+    truncations = np.array(list(truncations.values()))
+    infos = np.array(list(infos.values()))
+    obs = obs[np.newaxis, :, :]
+    rewards = rewards[np.newaxis, :, np.newaxis]
+    dones = dones[np.newaxis, :]
+    return obs, rewards, dones, truncations, infos
+
 def _t2n(x):
     return x.detach().cpu().numpy()
 
@@ -21,6 +45,7 @@ class MPERunner(Runner):
         self.warmup()   
 
         start = time.time()
+
         episodes = int(self.num_env_steps) // self.episode_length // self.n_rollout_threads
 
         for episode in range(episodes):
@@ -29,11 +54,15 @@ class MPERunner(Runner):
                     self.trainer[agent_id].policy.lr_decay(episode, episodes)
 
             for step in range(self.episode_length):
+                
                 # Sample actions
                 values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env = self.collect(step)
-                    
-                # Obser reward and next obs
-                obs, rewards, dones, infos = self.envs.step(actions_env)
+  
+                actions_step = before_pz(actions)
+                obs, rewards, dones, truncations, infos = self.envs.step(actions_step)
+                obs, rewards, dones, truncations, infos = after_pz(obs, rewards, dones, truncations, infos)
+
+                self.envs.render()
 
                 data = obs, rewards, dones, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic 
                 
@@ -66,11 +95,12 @@ class MPERunner(Runner):
 
                 if self.env_name == "MPE":
                     for agent_id in range(self.num_agents):
+                        print("np.mean(self.buffer[agent_id].rewards)", np.mean(self.buffer[agent_id].rewards))
                         idv_rews = []
-                        for info in infos:
-                            if 'individual_reward' in info[agent_id].keys():
-                                idv_rews.append(info[agent_id]['individual_reward'])
-                        train_infos[agent_id].update({'individual_rewards': np.mean(idv_rews)})
+                        #for info in infos:
+                            #if 'individual_reward' in info[agent_id].keys():
+                                #idv_rews.append(info[agent_id]['individual_reward'])
+                        #train_infos[agent_id].update({'individual_rewards': np.mean(idv_rews)})
                         train_infos[agent_id].update({"average_episode_rewards": np.mean(self.buffer[agent_id].rewards) * self.episode_length})
                 self.log_train(train_infos, total_num_steps)
 
@@ -80,8 +110,10 @@ class MPERunner(Runner):
 
     def warmup(self):
         # reset env
-        obs = self.envs.reset()
-
+        self.envs.reset()
+        obs = np.stack((np.array(self.envs.reset()['agent_0']), np.array(self.envs.reset()['agent_1']), np.array(self.envs.reset()['agent_2'])))
+        obs = obs[np.newaxis, :]
+        print("shape obs warmup", np.shape(obs))
         share_obs = []
         for o in obs:
             share_obs.append(list(chain(*o)))
@@ -103,6 +135,7 @@ class MPERunner(Runner):
         rnn_states_critic = []
 
         for agent_id in range(self.num_agents):
+            agent_id_pet = topetzoo(agent_id)
             self.trainer[agent_id].prep_rollout()
             value, action, action_log_prob, rnn_state, rnn_state_critic \
                 = self.trainer[agent_id].policy.get_actions(self.buffer[agent_id].share_obs[step],
@@ -114,15 +147,15 @@ class MPERunner(Runner):
             values.append(_t2n(value))
             action = _t2n(action)
             # rearrange action
-            if self.envs.action_space[agent_id].__class__.__name__ == 'MultiDiscrete':
-                for i in range(self.envs.action_space[agent_id].shape):
-                    uc_action_env = np.eye(self.envs.action_space[agent_id].high[i]+1)[action[:, i]]
+            if self.envs.action_spaces[agent_id_pet].__class__.__name__ == 'MultiDiscrete':
+                for i in range(self.envs.action_spaces[agent_id_pet].shape):
+                    uc_action_env = np.eye(self.envs.action_spaces[agent_id_pet].high[i]+1)[action[:, i]]
                     if i == 0:
                         action_env = uc_action_env
                     else:
                         action_env = np.concatenate((action_env, uc_action_env), axis=1)
-            elif self.envs.action_space[agent_id].__class__.__name__ == 'Discrete':
-                action_env = np.squeeze(np.eye(self.envs.action_space[agent_id].n)[action], 1)
+            elif self.envs.action_spaces[agent_id_pet].__class__.__name__ == 'Discrete':
+                action_env = np.squeeze(np.eye(self.envs.action_spaces[agent_id_pet].n)[action], 1)
             else:
                 raise NotImplementedError
 
@@ -186,6 +219,7 @@ class MPERunner(Runner):
         for eval_step in range(self.episode_length):
             eval_temp_actions_env = []
             for agent_id in range(self.num_agents):
+                agent_id_pet = topetzoo(agent_id)
                 self.trainer[agent_id].prep_rollout()
                 eval_action, eval_rnn_state = self.trainer[agent_id].policy.act(np.array(list(eval_obs[:, agent_id])),
                                                                                 eval_rnn_states[:, agent_id],
@@ -194,15 +228,15 @@ class MPERunner(Runner):
 
                 eval_action = eval_action.detach().cpu().numpy()
                 # rearrange action
-                if self.eval_envs.action_space[agent_id].__class__.__name__ == 'MultiDiscrete':
-                    for i in range(self.eval_envs.action_space[agent_id].shape):
-                        eval_uc_action_env = np.eye(self.eval_envs.action_space[agent_id].high[i]+1)[eval_action[:, i]]
+                if self.eval_envs.action_spaces[agent_id_pet].__class__.__name__ == 'MultiDiscrete':
+                    for i in range(self.eval_envs.action_spaces[agent_id_pet].shape):
+                        eval_uc_action_env = np.eye(self.eval_envs.action_spaces[agent_id_pet].high[i]+1)[eval_action[:, i]]
                         if i == 0:
                             eval_action_env = eval_uc_action_env
                         else:
                             eval_action_env = np.concatenate((eval_action_env, eval_uc_action_env), axis=1)
-                elif self.eval_envs.action_space[agent_id].__class__.__name__ == 'Discrete':
-                    eval_action_env = np.squeeze(np.eye(self.eval_envs.action_space[agent_id].n)[eval_action], 1)
+                elif self.eval_envs.action_spaces[agent_id_pet].__class__.__name__ == 'Discrete':
+                    eval_action_env = np.squeeze(np.eye(self.eval_envs.action_spaces[agent_id_pet].n)[eval_action], 1)
                 else:
                     raise NotImplementedError
 
@@ -253,6 +287,7 @@ class MPERunner(Runner):
                 
                 temp_actions_env = []
                 for agent_id in range(self.num_agents):
+                    agent_id_pet = topetzoo(agent_id)
                     if not self.use_centralized_V:
                         share_obs = np.array(list(obs[:, agent_id]))
                     self.trainer[agent_id].prep_rollout()
@@ -263,15 +298,15 @@ class MPERunner(Runner):
 
                     action = action.detach().cpu().numpy()
                     # rearrange action
-                    if self.envs.action_space[agent_id].__class__.__name__ == 'MultiDiscrete':
-                        for i in range(self.envs.action_space[agent_id].shape):
-                            uc_action_env = np.eye(self.envs.action_space[agent_id].high[i]+1)[action[:, i]]
+                    if self.envs.action_spaces[agent_id_pet].__class__.__name__ == 'MultiDiscrete':
+                        for i in range(self.envs.action_spaces[agent_id_pet].shape):
+                            uc_action_env = np.eye(self.envs.action_spaces[agent_id_pet].high[i]+1)[action[:, i]]
                             if i == 0:
                                 action_env = uc_action_env
                             else:
                                 action_env = np.concatenate((action_env, uc_action_env), axis=1)
-                    elif self.envs.action_space[agent_id].__class__.__name__ == 'Discrete':
-                        action_env = np.squeeze(np.eye(self.envs.action_space[agent_id].n)[action], 1)
+                    elif self.envs.action_spaces[agent_id_pet].__class__.__name__ == 'Discrete':
+                        action_env = np.squeeze(np.eye(self.envs.action_spaces[agent_id_pet].n)[action], 1)
                     else:
                         raise NotImplementedError
 
