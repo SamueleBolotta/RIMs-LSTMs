@@ -97,10 +97,10 @@ def main(args):
 
     # env init
     from pettingzoo.mpe import simple_spread_v2    
-    envs = simple_spread_v2.env(N=3, local_ratio=0.5, max_cycles=25, continuous_actions=False)
-    eval_envs = simple_spread_v2.env(N=3, local_ratio=0.5, max_cycles=25, continuous_actions=False)
+    envs = simple_spread_v2.parallel_env(N=3, local_ratio=0.5, max_cycles=25, continuous_actions=False)
+    eval_envs = simple_spread_v2.parallel_env(N=3, local_ratio=0.5, max_cycles=25, continuous_actions=False)
     num_agents = all_args.num_agents
-        
+     
     config = {
         "all_args": all_args,
         "envs": envs,
