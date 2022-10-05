@@ -10,6 +10,15 @@ from tensorboardX import SummaryWriter
 from onpolicy.utils.separated_buffer import SeparatedReplayBuffer
 from onpolicy.utils.util import update_linear_schedule
 
+def topetzoo(agent_id):
+    if agent_id == 0:
+        agent_id = 'agent_0'
+    elif agent_id == 1:
+        agent_id = 'agent_1'
+    elif agent_id == 2:
+        agent_id = 'agent_2'
+    return agent_id
+
 def _t2n(x):
     return x.detach().cpu().numpy()
 
@@ -66,19 +75,20 @@ class Runner(object):
                 if not os.path.exists(self.save_dir):
                     os.makedirs(self.save_dir)
 
-
         from onpolicy.algorithms.r_mappo.r_mappo import R_MAPPO as TrainAlgo
         from onpolicy.algorithms.r_mappo.algorithm.rMAPPOPolicy import R_MAPPOPolicy as Policy
 
-
         self.policy = []
         for agent_id in range(self.num_agents):
-            share_observation_space = self.envs.share_observation_space[agent_id] if self.use_centralized_V else self.envs.observation_space[agent_id]
+            agent_id_pet = topetzoo(agent_id)
+            obs_spa = self.envs.observation_space(agent_id_pet)
+            act_spa = self.envs.action_space(agent_id_pet)
+            share_observation_space = self.envs.state_space if self.use_centralized_V else self.envs.observation_space(agent_id_pet)
             # policy network
             po = Policy(self.all_args,
-                        self.envs.observation_space[agent_id],
+                        obs_spa,
                         share_observation_space,
-                        self.envs.action_space[agent_id],
+                        act_spa,
                         device = self.device)
             self.policy.append(po)
 
@@ -88,14 +98,16 @@ class Runner(object):
         self.trainer = []
         self.buffer = []
         for agent_id in range(self.num_agents):
-            # algorithm
+            agent_id_pet = topetzoo(agent_id)
             tr = TrainAlgo(self.all_args, self.policy[agent_id], device = self.device)
             # buffer
-            share_observation_space = self.envs.share_observation_space[agent_id] if self.use_centralized_V else self.envs.observation_space[agent_id]
+            obs_spa = self.envs.observation_space(agent_id_pet)
+            act_spa = self.envs.action_space(agent_id_pet)
+            share_observation_space = self.envs.state_space if self.use_centralized_V else self.envs.observation_space(agent_id_pet)
             bu = SeparatedReplayBuffer(self.all_args,
-                                       self.envs.observation_space[agent_id],
+                                       obs_spa,
                                        share_observation_space,
-                                       self.envs.action_space[agent_id])
+                                       act_spa)
             self.buffer.append(bu)
             self.trainer.append(tr)
             
