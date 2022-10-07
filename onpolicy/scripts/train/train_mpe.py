@@ -12,27 +12,10 @@ from pettingzoo.mpe import simple_spread_v2
 from pettingzoo.mpe._mpe_utils.core import Agent, Landmark, World
 from pettingzoo.mpe._mpe_utils.scenario import BaseScenario
 from pettingzoo.mpe._mpe_utils.simple_env import SimpleEnv, make_env
-from onpolicy.utils.env_wrappers import SubprocVecEnv, DummyVecEnv
+from pettingzoo.utils.conversions import parallel_wrapper_fn
 
 """Train script for MPEs."""
 
-def make_train_env(all_args):
-    def get_env_fn(rank):
-        def init_env():
-            if all_args.env_name == "MPE":
-                env = simple_spread_v2.parallel_env(N=3, local_ratio=0.5, max_cycles=num_env_steps, continuous_actions=False)
-            else:
-                print("Can not support the " +
-                      all_args.env_name + "environment.")
-                raise NotImplementedError
-            env.seed(all_args.seed + rank * 1000)
-            return env
-        return init_env
-    if all_args.n_rollout_threads == 1:
-        return DummyVecEnv([get_env_fn(0)])
-    else:
-        return SubprocVecEnv([get_env_fn(i) for i in range(all_args.n_rollout_threads)])
-    
 def parse_args(args, parser):
     parser.add_argument('--scenario_name', type=str,
                         default='simple_spread', help="Which scenario to run on")
@@ -60,8 +43,6 @@ def main(args):
         "The simple_speaker_listener scenario can not use shared policy. Please check the config.py.")
 
     # cuda
-    num_env_steps = all_args.num_env_steps
-    
     if all_args.cuda and torch.cuda.is_available():
         print("choose to use gpu...")
         device = torch.device("cuda:0")
@@ -115,8 +96,9 @@ def main(args):
     np.random.seed(all_args.seed)
 
     # env init
-    envs = make_train_env(all_args)
-    eval_envs = simple_spread_v2.parallel_env(N=3, local_ratio=0.5, max_cycles=20000000, continuous_actions=False)
+    from pettingzoo.mpe import simple_spread_v2    
+    envs = simple_spread_v2.parallel_env(N=3, local_ratio=0.5, max_cycles=25, continuous_actions=False)
+    eval_envs = simple_spread_v2.parallel_env(N=3, local_ratio=0.5, max_cycles=25, continuous_actions=False)
     num_agents = all_args.num_agents
      
     config = {
