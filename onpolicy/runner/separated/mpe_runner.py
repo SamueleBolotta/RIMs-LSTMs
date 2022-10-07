@@ -23,6 +23,8 @@ def before_pz(actions):
     return actions_step
 
 def after_pz(obs, rewards, dones, truncations, infos):
+    
+    
     obs = np.array(list(obs.values()))
     rewards = np.array(list(rewards.values()))
     dones = np.array(list(dones.values()))
@@ -59,9 +61,14 @@ class MPERunner(Runner):
   
                 actions_step = before_pz(actions)
                 obs, rewards, dones, truncations, infos = self.envs.step(actions_step)
-                obs, rewards, dones, truncations, infos = after_pz(obs, rewards, dones, truncations, infos)
+        
+                print("obs before pz", obs)
+                print("rew before pz", rewards)
 
-                self.envs.render()
+                obs, rewards, dones, truncations, infos = after_pz(obs, rewards, dones, truncations, infos)
+                
+                print("obs after pz", obs)
+                print("rew after pz", rewards)
 
                 data = obs, rewards, dones, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic 
                 
