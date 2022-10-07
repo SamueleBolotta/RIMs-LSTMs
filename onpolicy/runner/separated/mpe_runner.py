@@ -22,18 +22,17 @@ def before_pz(actions):
     actions_step = {"agent_0": int(actions[0][0]), "agent_1": int(actions[0][1]), "agent_2": int(actions[0][2])}
     return actions_step
 
-def after_pz(obs, rewards, dones, truncations, infos):
+def after_pz(obs, rewards, dones, infos):
     
     
     obs = np.array(list(obs.values()))
     rewards = np.array(list(rewards.values()))
     dones = np.array(list(dones.values()))
-    truncations = np.array(list(truncations.values()))
     infos = np.array(list(infos.values()))
     obs = obs[np.newaxis, :, :]
     rewards = rewards[np.newaxis, :, np.newaxis]
     dones = dones[np.newaxis, :]
-    return obs, rewards, dones, truncations, infos
+    return obs, rewards, dones, infos
 
 def _t2n(x):
     return x.detach().cpu().numpy()
@@ -60,18 +59,13 @@ class MPERunner(Runner):
                 values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env = self.collect(step)
   
                 actions_step = before_pz(actions)
-                obs, rewards, dones, truncations, infos = self.envs.step(actions_step)
-        
-                print("obs before pz", obs)
-                print("rew before pz", rewards)
+                obs, rewards, dones, infos = self.envs.step(actions_step)
 
-                obs, rewards, dones, truncations, infos = after_pz(obs, rewards, dones, truncations, infos)
-                
-                print("obs after pz", obs)
-                print("rew after pz", rewards)
+                obs, rewards, dones, infos = after_pz(obs, rewards, dones, infos)
 
                 data = obs, rewards, dones, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic 
-                
+
+               
                 # insert data into buffer
                 self.insert(data)
 
@@ -119,11 +113,12 @@ class MPERunner(Runner):
         self.envs.reset()
         obs = np.stack((np.array(self.envs.reset()['agent_0']), np.array(self.envs.reset()['agent_1']), np.array(self.envs.reset()['agent_2'])))
         obs = obs[np.newaxis, :]
-        print("shape obs warmup", np.shape(obs))
         share_obs = []
         for o in obs:
             share_obs.append(list(chain(*o)))
         share_obs = np.array(share_obs)
+        print("shape obs warmup", np.shape(obs))
+        print("shape s_obs warmup", share_obs)
 
         for agent_id in range(self.num_agents):
             if not self.use_centralized_V:
