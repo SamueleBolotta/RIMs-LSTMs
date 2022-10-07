@@ -94,11 +94,13 @@ def main(args):
     torch.manual_seed(all_args.seed)
     torch.cuda.manual_seed_all(all_args.seed)
     np.random.seed(all_args.seed)
-
+    
+    num_env_steps = all_args.num_env_steps
+    
     # env init
     from pettingzoo.mpe import simple_spread_v2    
-    envs = simple_spread_v2.parallel_env(N=3, local_ratio=0.5, max_cycles=25, continuous_actions=False)
-    eval_envs = simple_spread_v2.parallel_env(N=3, local_ratio=0.5, max_cycles=25, continuous_actions=False)
+    envs = simple_spread_v2.parallel_env(N=3, local_ratio=0.5, max_cycles=int(num_env_steps), continuous_actions=False)
+    eval_envs = simple_spread_v2.parallel_env(N=3, local_ratio=0.5, max_cycles=int(num_env_steps), continuous_actions=False)
     num_agents = all_args.num_agents
      
     config = {
