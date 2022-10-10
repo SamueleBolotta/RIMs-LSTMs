@@ -315,10 +315,8 @@ class SeparatedReplayBuffer(object):
         returns = _cast(self.returns[:-1])
         masks = _cast(self.masks[:-1])
         active_masks = _cast(self.active_masks[:-1])
-        print("rnn states shape", self.rnn_states.shape)
         rnn_states = self.rnn_states[:-1].transpose(1, 0, 2, 3).reshape(-1, *self.rnn_states.shape[2:])
         rnn_states_critic = self.rnn_states_critic[:-1].transpose(1, 0, 2, 3).reshape(-1, *self.rnn_states_critic.shape[2:])
-        print("rnn states shape", rnn_states.shape)
 
         if self.available_actions is not None:
             available_actions = _cast(self.available_actions[:-1])
