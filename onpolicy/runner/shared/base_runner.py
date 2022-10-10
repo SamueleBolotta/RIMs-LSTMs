@@ -5,6 +5,15 @@ import torch
 from tensorboardX import SummaryWriter
 from onpolicy.utils.shared_buffer import SharedReplayBuffer
 
+def topetzoo(agent_id):
+    if agent_id == 0:
+        agent_id = 'agent_0'
+    elif agent_id == 1:
+        agent_id = 'agent_1'
+    elif agent_id == 2:
+        agent_id = 'agent_2'
+    return agent_id
+
 def _t2n(x):
     """Convert torch tensor to a numpy array."""
     return x.detach().cpu().numpy()
@@ -66,13 +75,13 @@ class Runner(object):
         from onpolicy.algorithms.r_mappo.r_mappo import R_MAPPO as TrainAlgo
         from onpolicy.algorithms.r_mappo.algorithm.rMAPPOPolicy import R_MAPPOPolicy as Policy
 
-        share_observation_space = self.envs.share_observation_space[0] if self.use_centralized_V else self.envs.observation_space[0]
+        share_observation_space = self.envs.state_space if self.use_centralized_V else self.envs.observation_space
 
         # policy network
         self.policy = Policy(self.all_args,
-                            self.envs.observation_space[0],
+                            self.envs.observation_space,
                             share_observation_space,
-                            self.envs.action_space[0],
+                            self.envs.action_space,
                             device = self.device)
 
         if self.model_dir is not None:
@@ -84,7 +93,7 @@ class Runner(object):
         # buffer
         self.buffer = SharedReplayBuffer(self.all_args,
                                         self.num_agents,
-                                        self.envs.observation_space[0],
+                                        self.envs.observation_space,
                                         share_observation_space,
                                         self.envs.action_space[0])
 
