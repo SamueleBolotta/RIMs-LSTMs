@@ -117,8 +117,6 @@ class MPERunner(Runner):
         for o in obs:
             share_obs.append(list(chain(*o)))
         share_obs = np.array(share_obs)
-        print("shape obs warmup", np.shape(obs))
-        print("shape s_obs warmup", share_obs)
 
         for agent_id in range(self.num_agents):
             if not self.use_centralized_V:
