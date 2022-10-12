@@ -9,15 +9,15 @@ from tensorboardX import SummaryWriter
 from onpolicy.utils.separated_buffer import SeparatedReplayBuffer
 from onpolicy.utils.util import update_linear_schedule
 
-def topetzoo(agent_id):
-    if agent_id == 0:
-        agent_id = 'agent_0'
-    elif agent_id == 1:
-        agent_id = 'agent_1'
-    elif agent_id == 2:
-        agent_id = 'agent_2'
-    return agent_id
 
+def topetzoo(agent_id, envs, num_agents):
+    if envs == 'butterfly-pistonball': 
+        basename = 'piston'
+    elif envs == 'simple_spread_v2':
+        basename = "agent"   
+    result = ["{}_{}".format(basename, i) for i in range(0, num_agents)]
+    return result[agent_id]
+        
 def _t2n(x):
     return x.detach().cpu().numpy()
 
@@ -29,6 +29,7 @@ class Runner(object):
         self.eval_envs = config['eval_envs']
         self.device = config['device']
         self.num_agents = config['num_agents']
+        self.scenario_name = config['num_agents']
 
         # parameters
         self.env_name = self.all_args.env_name
@@ -79,7 +80,7 @@ class Runner(object):
 
         self.policy = []
         for agent_id in range(self.num_agents):
-            agent_id_pet = topetzoo(agent_id)
+            agent_id_pet = topetzoo(agent_id, self.env_name, self.num_agents)
             obs_spa = self.envs.observation_space(agent_id_pet)
             act_spa = self.envs.action_space(agent_id_pet)
             share_observation_space = self.envs.state_space if self.use_centralized_V else self.envs.observation_space(agent_id_pet)
@@ -97,7 +98,7 @@ class Runner(object):
         self.trainer = []
         self.buffer = []
         for agent_id in range(self.num_agents):
-            agent_id_pet = topetzoo(agent_id)
+            agent_id_pet = topetzoo(agent_id, self.env_name, self.num_agents)
             tr = TrainAlgo(self.all_args, self.policy[agent_id], device = self.device)
             # buffer
             obs_spa = self.envs.observation_space(agent_id_pet)
