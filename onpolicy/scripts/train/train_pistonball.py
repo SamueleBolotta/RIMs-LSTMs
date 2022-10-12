@@ -10,9 +10,6 @@ import torch
 from onpolicy.config import get_config
 from supersuit import color_reduction_v0, frame_stack_v1, resize_v1
 from pettingzoo.butterfly import pistonball_v6
-from pettingzoo.mpe._mpe_utils.core import Agent, Landmark, World
-from pettingzoo.mpe._mpe_utils.scenario import BaseScenario
-from pettingzoo.mpe._mpe_utils.simple_env import SimpleEnv, make_env
 from pettingzoo.utils.conversions import parallel_wrapper_fn
 
 """Train script for MPEs."""
@@ -20,7 +17,6 @@ from pettingzoo.utils.conversions import parallel_wrapper_fn
 def parse_args(args, parser):
     parser.add_argument('--scenario_name', type=str,
                         default='pistonball_v6', help="Which scenario to run on")
-    parser.add_argument("--num_landmarks", type=int, default=20)
     parser.add_argument('--num_agents', type=int,
                         default=20, help="number of players")
     all_args = parser.parse_known_args(args)[0]
@@ -98,19 +94,23 @@ def main(args):
     num_agents = all_args.num_agents
 
     # env init
-    from pettingzoo.mpe import pistonball_v6    
+    from pettingzoo.butterfly import pistonball_v6    
     if all_args.n_rollout_threads == 1:
+        stack_size = 4
+        frame_size = (64, 64)
         envs = pistonball_v6.parallel_env(render_mode="rgb_array", continuous=False, max_cycles=250)
-        envs = color_reduction_v0(env)
-        envs = resize_v1(env, frame_size[0], frame_size[1])
-        envs = frame_stack_v1(env, stack_size=stack_size)
+        envs = color_reduction_v0(envs)
+        envs = resize_v1(envs, frame_size[0], frame_size[1])
+        envs = frame_stack_v1(envs, stack_size=stack_size)
         
     # eval env init
     if all_args.n_rollout_threads == 1:
+        stack_size = 4
+        frame_size = (64, 64)
         eval_envs = pistonball_v6.parallel_env(render_mode="rgb_array", continuous=False, max_cycles=250)
-        eval_envs = color_reduction_v0(env)
-        eval_envs = resize_v1(env, frame_size[0], frame_size[1])
-        eval_envs = frame_stack_v1(env, stack_size=stack_size) 
+        eval_envs = color_reduction_v0(eval_envs)
+        eval_envs = resize_v1(eval_envs, frame_size[0], frame_size[1])
+        eval_envs = frame_stack_v1(eval_envs, stack_size=stack_size)
                 
     config = {
         "all_args": all_args,
