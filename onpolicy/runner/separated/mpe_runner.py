@@ -24,7 +24,6 @@ def before_pz(actions):
 
 def after_pz(obs, rewards, dones, infos):
     
-    
     obs = np.array(list(obs.values()))
     rewards = np.array(list(rewards.values()))
     dones = np.array(list(dones.values()))
@@ -42,9 +41,6 @@ class MPERunner(Runner):
         super(MPERunner, self).__init__(config)
        
     def run(self):
-        self.warmup()   
-
-        start = time.time()
 
         episodes = int(self.num_env_steps) // self.episode_length // self.n_rollout_threads
 
@@ -54,15 +50,20 @@ class MPERunner(Runner):
                     self.trainer[agent_id].policy.lr_decay(episode, episodes)
 
             for step in range(self.episode_length):
+                self.warmup()   
+
+                start = time.time()
                 
                 # Sample actions
                 values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env = self.collect(step)
   
                 actions_step = before_pz(actions)
+            
                 obs, rewards, dones, infos = self.envs.step(actions_step)
-
                 obs, rewards, dones, infos = after_pz(obs, rewards, dones, infos)
-
+                
+                self.envs.render()
+                
                 data = obs, rewards, dones, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic 
 
                
