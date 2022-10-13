@@ -7,6 +7,50 @@ import imageio
 
 def _t2n(x):
     return x.detach().cpu().numpy()
+def unbatchify(x, env):
+    """Converts np array to PZ style arguments."""
+    x = x.cpu().numpy()
+    x = {a: x[i] for i, a in enumerate(env.possible_agents)}
+    return x
+def batchify_obs(obs, device):
+    """Converts PZ style observations to batch of torch arrays."""
+    # convert to list of np arrays
+    obs = np.stack([obs[a] for a in obs], axis=0)
+    # transpose to be (batch, channel, height, width)
+    obs_n = obs.transpose(0, -1, 1, 2)
+    # convert to torch
+    obs = torch.tensor(obs_n).to(device)
+    return obs, obs_n
+def topetzoo(agent_id, envs, num_agents):
+    if envs == 'butterfly-pistonball': 
+        basnm = 'piston'
+    elif envs == 'simple_spread_v2':
+        basnm = "agent"   
+    result = ["{}_{}".format(basnm, i) for i in range(0, num_agents)]
+    return result[agent_id]
+    
+        
+def before_pz(actions, envs, num_agents):
+    if envs == 'butterfly-pistonball': 
+        basnm = 'piston'
+    elif envs == 'simple_spread_v2':
+        basnm = "agent"
+    actions_step = {"{}_{}".format(basnm, i):int(actions[0][i]) for i in range(0, num_agents)}
+    return actions_step
+def after_pz(obs, rewards, terms, truncs, infos):
+    
+    obs = np.array(list(obs.values()))
+    rewards = np.array(list(rewards.values()))
+    terms = np.array(list(terms.values()))
+    truncs = np.array(list(truncs.values()))
+    infos = np.array(list(infos.values()))
+    obs = obs[np.newaxis, :, :]
+    rewards = rewards[np.newaxis, :, np.newaxis]
+    terms = terms[np.newaxis, :]
+    truncs = truncs[np.newaxis, :]
+    return obs, rewards, terms, truncs, infos
+
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 class MPERunner(Runner):
     """Runner class to perform training, evaluation. and data collection for the MPEs. See parent class for details."""
@@ -14,26 +58,30 @@ class MPERunner(Runner):
         super(MPERunner, self).__init__(config)
 
     def run(self):
-        self.warmup()   
 
-        start = time.time()
         episodes = int(self.num_env_steps) // self.episode_length // self.n_rollout_threads
 
         for episode in range(episodes):
             if self.use_linear_lr_decay:
                 self.trainer.policy.lr_decay(episode, episodes)
+                
+            next_obs = self.envs.reset(seed=None)   
+            start = time.time()
 
             for step in range(self.episode_length):
+                
+                obs, obs_n = batchify_obs(next_obs, device)
+                print("shape of obs", obs.shape)
+                self.warmup(obs)
+                
                 # Sample actions
                 values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env = self.collect(step)
                     
-                # Obser reward and next obs
-                obs, rewards, dones, infos = self.envs.step(actions_env)
-
-                data = obs, rewards, dones, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic
-
-                # insert data into buffer
-                self.insert(data)
+                next_obs, rewards, terms, truncs, infos = self.envs.step(unbatchify(actions, env))
+                
+                obs, rewards, terms, truncs, infos = after_pz(obs, rewards, terms, truncs, infos)
+                                
+                data = obs, rewards, terms, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic 
 
             # compute return and update network
             self.compute()
@@ -59,16 +107,8 @@ class MPERunner(Runner):
                                 self.num_env_steps,
                                 int(total_num_steps / (end - start))))
 
-                if self.env_name == "MPE":
-                    env_infos = {}
-                    for agent_id in range(self.num_agents):
-                        idv_rews = []
-                        for info in infos:
-                            if 'individual_reward' in info[agent_id].keys():
-                                idv_rews.append(info[agent_id]['individual_reward'])
-                        agent_k = 'agent%i/individual_rewards' % agent_id
-                        env_infos[agent_k] = idv_rews
-
+                env_infos = {}
+                    
                 train_infos["average_episode_rewards"] = np.mean(self.buffer.rewards) * self.episode_length
                 print("average episode rewards is {}".format(train_infos["average_episode_rewards"]))
                 self.log_train(train_infos, total_num_steps)
@@ -78,9 +118,7 @@ class MPERunner(Runner):
             if episode % self.eval_interval == 0 and self.use_eval:
                 self.eval(total_num_steps)
 
-    def warmup(self):
-        # reset env
-        obs = self.envs.reset()
+    def warmup(self, obs):
 
         # replay buffer
         if self.use_centralized_V:
@@ -123,12 +161,12 @@ class MPERunner(Runner):
         return values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env
 
     def insert(self, data):
-        obs, rewards, dones, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic = data
+        obs, rewards, terms, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic = data
 
-        rnn_states[dones == True] = np.zeros(((dones == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
-        rnn_states_critic[dones == True] = np.zeros(((dones == True).sum(), *self.buffer.rnn_states_critic.shape[3:]), dtype=np.float32)
+        rnn_states[terms == True] = np.zeros(((terms == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
+        rnn_states_critic[terms == True] = np.zeros(((terms == True).sum(), *self.buffer.rnn_states_critic.shape[3:]), dtype=np.float32)
         masks = np.ones((self.n_rollout_threads, self.num_agents, 1), dtype=np.float32)
-        masks[dones == True] = np.zeros(((dones == True).sum(), 1), dtype=np.float32)
+        masks[terms == True] = np.zeros(((terms == True).sum(), 1), dtype=np.float32)
 
         if self.use_centralized_V:
             share_obs = obs.reshape(self.n_rollout_threads, -1)
@@ -168,12 +206,12 @@ class MPERunner(Runner):
                 raise NotImplementedError
 
             # Obser reward and next obs
-            eval_obs, eval_rewards, eval_dones, eval_infos = self.eval_envs.step(eval_actions_env)
+            eval_obs, eval_rewards, eval_terms, eval_infos = self.eval_envs.step(eval_actions_env)
             eval_episode_rewards.append(eval_rewards)
 
-            eval_rnn_states[eval_dones == True] = np.zeros(((eval_dones == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
+            eval_rnn_states[eval_terms == True] = np.zeros(((eval_terms == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
             eval_masks = np.ones((self.n_eval_rollout_threads, self.num_agents, 1), dtype=np.float32)
-            eval_masks[eval_dones == True] = np.zeros(((eval_dones == True).sum(), 1), dtype=np.float32)
+            eval_masks[eval_terms == True] = np.zeros(((eval_terms == True).sum(), 1), dtype=np.float32)
 
         eval_episode_rewards = np.array(eval_episode_rewards)
         eval_env_infos = {}
@@ -182,67 +220,3 @@ class MPERunner(Runner):
         print("eval average episode rewards of agent: " + str(eval_average_episode_rewards))
         self.log_env(eval_env_infos, total_num_steps)
 
-    @torch.no_grad()
-    def render(self):
-        """Visualize the env."""
-        envs = self.envs
-        
-        all_frames = []
-        for episode in range(self.all_args.render_episodes):
-            obs = envs.reset()
-            if self.all_args.save_gifs:
-                image = envs.render('rgb_array')[0][0]
-                all_frames.append(image)
-            else:
-                envs.render('human')
-
-            rnn_states = np.zeros((self.n_rollout_threads, self.num_agents, self.recurrent_N, self.hidden_size), dtype=np.float32)
-            masks = np.ones((self.n_rollout_threads, self.num_agents, 1), dtype=np.float32)
-            
-            episode_rewards = []
-            
-            for step in range(self.episode_length):
-                calc_start = time.time()
-
-                self.trainer.prep_rollout()
-                action, rnn_states = self.trainer.policy.act(np.concatenate(obs),
-                                                    np.concatenate(rnn_states),
-                                                    np.concatenate(masks),
-                                                    deterministic=True)
-                actions = np.array(np.split(_t2n(action), self.n_rollout_threads))
-                rnn_states = np.array(np.split(_t2n(rnn_states), self.n_rollout_threads))
-
-                if envs.action_space[0].__class__.__name__ == 'MultiDiscrete':
-                    for i in range(envs.action_space[0].shape):
-                        uc_actions_env = np.eye(envs.action_space[0].high[i]+1)[actions[:, :, i]]
-                        if i == 0:
-                            actions_env = uc_actions_env
-                        else:
-                            actions_env = np.concatenate((actions_env, uc_actions_env), axis=2)
-                elif envs.action_space[0].__class__.__name__ == 'Discrete':
-                    actions_env = np.squeeze(np.eye(envs.action_space[0].n)[actions], 2)
-                else:
-                    raise NotImplementedError
-
-                # Obser reward and next obs
-                obs, rewards, dones, infos = envs.step(actions_env)
-                episode_rewards.append(rewards)
-
-                rnn_states[dones == True] = np.zeros(((dones == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
-                masks = np.ones((self.n_rollout_threads, self.num_agents, 1), dtype=np.float32)
-                masks[dones == True] = np.zeros(((dones == True).sum(), 1), dtype=np.float32)
-
-                if self.all_args.save_gifs:
-                    image = envs.render('rgb_array')[0][0]
-                    all_frames.append(image)
-                    calc_end = time.time()
-                    elapsed = calc_end - calc_start
-                    if elapsed < self.all_args.ifi:
-                        time.sleep(self.all_args.ifi - elapsed)
-                else:
-                    envs.render('human')
-
-            print("average episode rewards is: " + str(np.mean(np.sum(np.array(episode_rewards), axis=0))))
-
-        if self.all_args.save_gifs:
-            imageio.mimsave(str(self.gif_dir) + '/render.gif', all_frames, duration=self.all_args.ifi)
