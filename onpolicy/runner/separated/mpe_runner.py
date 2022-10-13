@@ -9,21 +9,39 @@ from onpolicy.utils.util import update_linear_schedule
 from onpolicy.runner.separated.base_runner import Runner
 import imageio
 
+def unbatchify(x, env):
+    """Converts np array to PZ style arguments."""
+    x = x.cpu().numpy()
+    x = {a: x[i] for i, a in enumerate(env.possible_agents)}
+
+    return x
+
+def batchify_obs(obs, device):
+    """Converts PZ style observations to batch of torch arrays."""
+    # convert to list of np arrays
+    obs = np.stack([obs[a] for a in obs], axis=0)
+    # transpose to be (batch, channel, height, width)
+    obs_n = obs.transpose(0, -1, 1, 2)
+    # convert to torch
+    obs = torch.tensor(obs_n).to(device)
+
+    return obs, obs_n
+
 def topetzoo(agent_id, envs, num_agents):
     if envs == 'butterfly-pistonball': 
-        basename = 'piston'
+        basnm = 'piston'
     elif envs == 'simple_spread_v2':
-        basename = "agent"   
-    result = ["{}_{}".format(basename, i) for i in range(0, num_agents)]
+        basnm = "agent"   
+    result = ["{}_{}".format(basnm, i) for i in range(0, num_agents)]
     return result[agent_id]
     
         
 def before_pz(actions, envs, num_agents):
     if envs == 'butterfly-pistonball': 
-        basename = 'piston'
+        basnm = 'piston'
     elif envs == 'simple_spread_v2':
-        basename = "agent"
-    actions_step = {"{}_{}".format(basename, i):int(actions[0][i]) for i in range(0, num_agents)}
+        basnm = "agent"
+    actions_step = {"{}_{}".format(basnm, i):int(actions[0][i]) for i in range(0, num_agents)}
     return actions_step
 
 def after_pz(obs, rewards, terms, truncs, infos):
@@ -42,6 +60,8 @@ def after_pz(obs, rewards, terms, truncs, infos):
 def _t2n(x):
     return x.detach().cpu().numpy()
 
+device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+                      
 class MPERunner(Runner):
     def __init__(self, config):
         super(MPERunner, self).__init__(config)
@@ -54,22 +74,26 @@ class MPERunner(Runner):
             if self.use_linear_lr_decay:
                 for agent_id in range(self.num_agents):
                     self.trainer[agent_id].policy.lr_decay(episode, episodes)
+                    
+            next_obs = self.envs.reset(seed=None)   
+            start = time.time()
 
             for step in range(self.episode_length):
-                self.warmup()   
+                
+                obs, obs_n = batchify_obs(next_obs, device)
+                print("shape of obs", obs.shape)
 
-                start = time.time()
+                self.warmup(obs)
                 
                 # Sample actions
                 values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env = self.collect(step)
-  
-                actions_step = before_pz(actions, self.env_name, self.num_agents)
-            
-                obs, rewards, terms, truncs, infos = self.envs.step(actions_step)
+              
+                next_obs, rewards, terms, truncs, infos = self.envs.step(
+                    unbatchify(actions, env)
+                )
+                
                 obs, rewards, terms, truncs, infos = after_pz(obs, rewards, terms, truncs, infos)
-                
-                self.envs.render()
-                
+                                
                 data = obs, rewards, terms, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic 
                
                 # insert data into buffer
@@ -108,17 +132,7 @@ class MPERunner(Runner):
             if episode % self.eval_interval == 0 and self.use_eval:
                 self.eval(total_num_steps)
 
-    def warmup(self):
-        # reset env        
-        if self.env_name == 'butterfly-pistonball': 
-            basename = 'piston'
-        elif self.env_name == 'simple_spread_v2':
-            basename = "agent"   
-            
-        result = ["{}_{}".format(basename, i) for i in range(0, self.num_agents)]
-        stacks = [np.array(self.envs.reset()[ops]) for ops in result]
-        obs = np.stack((stacks))
-        obs = obs[np.newaxis, :]
+    def warmup(self, obs):
         share_obs = []
         for o in obs:
             share_obs.append(list(chain(*o)))
@@ -127,7 +141,8 @@ class MPERunner(Runner):
         for agent_id in range(self.num_agents):
             if not self.use_centralized_V:
                 share_obs = np.array(list(obs[:, agent_id]))
-            self.buffer[agent_id].share_obs[0] = share_obs.copy()
+            
+            #self.buffer[agent_id].share_obs[0] = share_obs.copy()
             self.buffer[agent_id].obs[0] = np.array(list(obs[:, agent_id])).copy()
 
     @torch.no_grad()
