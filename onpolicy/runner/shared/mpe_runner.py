@@ -7,36 +7,7 @@ import imageio
 
 def _t2n(x):
     return x.detach().cpu().numpy()
-def unbatchify(x, env):
-    """Converts np array to PZ style arguments."""
-    x = x.cpu().numpy()
-    x = {a: x[i] for i, a in enumerate(env.possible_agents)}
-    return x
-def batchify_obs(obs, device):
-    """Converts PZ style observations to batch of torch arrays."""
-    # convert to list of np arrays
-    obs = np.stack([obs[a] for a in obs], axis=0)
-    # transpose to be (batch, channel, height, width)
-    obs_n = obs.transpose(0, -1, 1, 2)
-    # convert to torch
-    obs = torch.tensor(obs_n).to(device)
-    return obs, obs_n
-def topetzoo(agent_id, envs, num_agents):
-    if envs == 'butterfly-pistonball': 
-        basnm = 'piston'
-    elif envs == 'simple_spread_v2':
-        basnm = "agent"   
-    result = ["{}_{}".format(basnm, i) for i in range(0, num_agents)]
-    return result[agent_id]
-    
-        
-def before_pz(actions, envs, num_agents):
-    if envs == 'butterfly-pistonball': 
-        basnm = 'piston'
-    elif envs == 'simple_spread_v2':
-        basnm = "agent"
-    actions_step = {"{}_{}".format(basnm, i):int(actions[0][i]) for i in range(0, num_agents)}
-    return actions_step
+
 def after_pz(obs, rewards, terms, truncs, infos):
     
     obs = np.array(list(obs.values()))
@@ -50,6 +21,34 @@ def after_pz(obs, rewards, terms, truncs, infos):
     truncs = truncs[np.newaxis, :]
     return obs, rewards, terms, truncs, infos
 
+def unbatchify(x, env):
+    """Converts np array to PZ style arguments."""
+    x = {a: x[0][i][0] for i, a in enumerate(env.possible_agents)}
+    return x
+
+def batchify_obs(obs, device, envs):
+    """Converts PZ style observations to batch of torch arrays."""
+    # convert to list of np arrays
+    obs = np.stack([obs[a] for a in obs], axis=0)
+    # transpose to be (batch, channel, height, width)
+    if len(np.shape(obs)) == 4:
+        obs = obs.transpose(0, -1, 1, 2)
+    return obs
+
+def topetzoo(agent_id, envs, num_agents):
+    if envs == 'butterfly-pistonball': 
+        basnm = 'piston'
+    elif envs == 'simple_spread_v2':
+        basnm = "agent"   
+    result = ["{}_{}".format(basnm, i) for i in range(0, num_agents)]
+    return result[agent_id]
+        
+def batchify(x):
+    """Converts PZ style returns to batch of torch arrays."""
+    # convert to list of np arrays
+    x = np.stack([x[a] for a in x], axis=0)
+    return x
+
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 class MPERunner(Runner):
@@ -60,37 +59,48 @@ class MPERunner(Runner):
     def run(self):
 
         episodes = int(self.num_env_steps) // self.episode_length // self.n_rollout_threads
-
+        rb_rewards = torch.zeros((self.episode_length, self.num_agents)).to(device)
         for episode in range(episodes):
+
             if self.use_linear_lr_decay:
                 self.trainer.policy.lr_decay(episode, episodes)
-                
+                    
+            # collect observations and convert to batch of torch tensors
             next_obs = self.envs.reset(seed=None)   
             start = time.time()
+            # reset the episodic return
+            total_episodic_return = 0
+                
+            for step in range(0, self.episode_length):
 
-            for step in range(self.episode_length):
-                
-                obs, obs_n = batchify_obs(next_obs, device)
-                print("shape of obs", obs.shape)
-                
-                self.warmup(obs)
-                
-                # Sample actions
-                values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env = self.collect(step)
+                print("step: ", step, "episode: ", episode)
                     
-                next_obs, rewards, terms, truncs, infos = self.envs.step(unbatchify(actions, env))
-                
-                obs, rewards, terms, truncs, infos = after_pz(obs, rewards, terms, truncs, infos)
-                                
-                data = obs, rewards, terms, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic 
+                # rollover the observation
+                obs = batchify_obs(next_obs, device, self.envs)
+                self.buffer.share_obs[0] = obs.copy()
+                self.buffer.obs[0] = obs.copy()
 
+                # get action from the agent                    
+                values, actions, action_log_probs, rnn_states, rnn_states_critic = self.collect(step)
+                    
+                # execute the environment and log data
+                next_obs, rewards, terms, truncs, infos = self.envs.step(actions)
+                
+                self.envs.render()
+                
+                total_episodic_return += batchify(rewards)
+
+                data = next_obs, rewards, terms, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic 
+                    
+                        
+            print(f"Episodic Return: {np.mean(total_episodic_return)}")        
             # compute return and update network
             self.compute()
             train_infos = self.train()
-            
+
             # post process
             total_num_steps = (episode + 1) * self.episode_length * self.n_rollout_threads
-            
+
             # save model
             if (episode % self.save_interval == 0 or episode == episodes - 1):
                 self.save()
@@ -99,30 +109,26 @@ class MPERunner(Runner):
             if episode % self.log_interval == 0:
                 end = time.time()
                 print("\n Scenario {} Algo {} Exp {} updates {}/{} episodes, total num timesteps {}/{}, FPS {}.\n"
-                        .format(self.all_args.scenario_name,
-                                self.algorithm_name,
-                                self.experiment_name,
-                                episode,
-                                episodes,
-                                total_num_steps,
-                                self.num_env_steps,
-                                int(total_num_steps / (end - start))))
+                            .format(self.all_args.scenario_name,
+                                    self.algorithm_name,
+                                    self.experiment_name,
+                                    episode,
+                                    episodes,
+                                    total_num_steps,
+                                    self.num_env_steps,
+                                    int(total_num_steps / (end - start))))
 
                 env_infos = {}
-                    
+
                 train_infos["average_episode_rewards"] = np.mean(self.buffer.rewards) * self.episode_length
                 print("average episode rewards is {}".format(train_infos["average_episode_rewards"]))
                 self.log_train(train_infos, total_num_steps)
                 self.log_env(env_infos, total_num_steps)
 
-            # eval
-            if episode % self.eval_interval == 0 and self.use_eval:
-                self.eval(total_num_steps)
+                # eval
+                if episode % self.eval_interval == 0 and self.use_eval:
+                    self.eval(total_num_steps)
 
-    def warmup(self, obs):
-        obs = _t2n(obs)
-        self.buffer.share_obs[0] = obs.copy()
-        self.buffer.obs[0] = obs.copy()
 
     @torch.no_grad()
     def collect(self, step):
@@ -139,20 +145,9 @@ class MPERunner(Runner):
         action_log_probs = np.array(np.split(_t2n(action_log_prob), self.n_rollout_threads))
         rnn_states = np.array(np.split(_t2n(rnn_states), self.n_rollout_threads))
         rnn_states_critic = np.array(np.split(_t2n(rnn_states_critic), self.n_rollout_threads))
-        # rearrange action
-        if self.envs.action_space[0].__class__.__name__ == 'MultiDiscrete':
-            for i in range(self.envs.action_space[0].shape):
-                uc_actions_env = np.eye(self.envs.action_space[0].high[i] + 1)[actions[:, :, i]]
-                if i == 0:
-                    actions_env = uc_actions_env
-                else:
-                    actions_env = np.concatenate((actions_env, uc_actions_env), axis=2)
-        elif self.envs.action_space[0].__class__.__name__ == 'Discrete':
-            actions_env = np.squeeze(np.eye(self.envs.action_space[0].n)[actions], 2)
-        else:
-            raise NotImplementedError
+        actions = unbatchify(actions, self.envs)
 
-        return values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env
+        return values, actions, action_log_probs, rnn_states, rnn_states_critic
 
     def insert(self, data):
         obs, rewards, terms, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic = data
