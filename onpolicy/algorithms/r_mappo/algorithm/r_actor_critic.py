@@ -1,5 +1,6 @@
 import torch
 import torch.nn as nn
+import numpy as np
 from onpolicy.algorithms.utils.util import init, check
 from onpolicy.algorithms.utils.cnn import CNNBase
 from onpolicy.algorithms.utils.mlp import MLPBase
@@ -37,7 +38,22 @@ class R_Actor(nn.Module, torch_ac.RecurrentACModel):
 
         obs_shape = get_shape_from_obs_space(obs_space)
         base = CNNBase if len(obs_shape) == 3 else MLPBase
-        self.base = base(args, obs_shape)
+        self.base = nn.Sequential(
+            self._layer_init(nn.Conv2d(4, 32, 3, padding=1)),
+            nn.MaxPool2d(2),
+            nn.ReLU(),
+            self._layer_init(nn.Conv2d(32, 64, 3, padding=1)),
+            nn.MaxPool2d(2),
+            nn.ReLU(),
+            self._layer_init(nn.Conv2d(64, 128, 3, padding=1)),
+            nn.MaxPool2d(2),
+            nn.ReLU(),
+            nn.Flatten(),
+            self._layer_init(nn.Linear(128 * 8 * 8, 512)),
+            nn.ReLU(),
+            self._layer_init(nn.Linear(512, 64)),
+            nn.ReLU(),
+        )
 
         if self._use_naive_recurrent_policy or self._use_recurrent_policy:
             if self._use_rims_policy_LSTM:  
@@ -50,7 +66,12 @@ class R_Actor(nn.Module, torch_ac.RecurrentACModel):
         self.act = ACTLayer(action_space, self.hidden_size, self._use_orthogonal, self._gain)
 
         self.to(device)
-
+        
+    def _layer_init(self, layer, std=np.sqrt(2), bias_const=0.0):
+        torch.nn.init.orthogonal_(layer.weight, std)
+        torch.nn.init.constant_(layer.bias, bias_const)
+        return layer
+    
     def forward(self, obs, rnn_states, masks, available_actions=None, deterministic=False):
         """
         Compute actions from the given inputs.
@@ -171,7 +192,23 @@ class R_Critic(nn.Module, torch_ac.RecurrentACModel):
 
         obs_shape = get_shape_from_obs_space(obs_space)
         base = CNNBase if len(obs_shape) == 3 else MLPBase
-        self.base = base(args, obs_shape)        
+        
+        self.base = nn.Sequential(
+            self._layer_init(nn.Conv2d(4, 32, 3, padding=1)),
+            nn.MaxPool2d(2),
+            nn.ReLU(),
+            self._layer_init(nn.Conv2d(32, 64, 3, padding=1)),
+            nn.MaxPool2d(2),
+            nn.ReLU(),
+            self._layer_init(nn.Conv2d(64, 128, 3, padding=1)),
+            nn.MaxPool2d(2),
+            nn.ReLU(),
+            nn.Flatten(),
+            self._layer_init(nn.Linear(128 * 8 * 8, 512)),
+            nn.ReLU(),
+            self._layer_init(nn.Linear(512, 64)),
+            nn.ReLU(),
+        )
 
         if self._use_naive_recurrent_policy or self._use_recurrent_policy:
             if self._use_rims_policy_LSTM:  
@@ -181,6 +218,8 @@ class R_Critic(nn.Module, torch_ac.RecurrentACModel):
             elif self._use_lstm_policy:
                 self.rnn = RNNLayer(self.hidden_size, self.hidden_size, self._recurrent_N, self._use_orthogonal)
 
+        self.to(device)
+        
         def init_(m):
             return init(m, init_method, lambda x: nn.init.constant_(x, 0))
 
@@ -188,8 +227,14 @@ class R_Critic(nn.Module, torch_ac.RecurrentACModel):
             self.v_out = init_(PopArt(self.hidden_size, 1, device=device))
         else:
             self.v_out = init_(nn.Linear(self.hidden_size, 1))
-
+            
         self.to(device)
+        
+    def _layer_init(self, layer, std=np.sqrt(2), bias_const=0.0):
+        torch.nn.init.orthogonal_(layer.weight, std)
+        torch.nn.init.constant_(layer.bias, bias_const)
+        return layer
+   
 
     def forward(self, obs, rnn_states, masks):
         """
