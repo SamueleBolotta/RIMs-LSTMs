@@ -5,14 +5,14 @@ import torch
 from tensorboardX import SummaryWriter
 from onpolicy.utils.shared_buffer import SharedReplayBuffer
 
-def topetzoo(agent_id):
-    if agent_id == 0:
-        agent_id = 'agent_0'
-    elif agent_id == 1:
-        agent_id = 'agent_1'
-    elif agent_id == 2:
-        agent_id = 'agent_2'
-    return agent_id
+def topetzoo(agent_id, envs, num_agents):
+    print("envs", envs)
+    if envs == 'butterfly-pistonball': 
+        basn = 'piston'
+    elif envs == 'simple_spread_v2':
+        basn = "agent"   
+    result = ["{}_{}".format(basn, i) for i in range(0, num_agents)]
+    return result[agent_id]
 
 def _t2n(x):
     """Convert torch tensor to a numpy array."""
@@ -76,13 +76,17 @@ class Runner(object):
         from onpolicy.algorithms.r_mappo.algorithm.rMAPPOPolicy import R_MAPPOPolicy as Policy
 
         share_observation_space = self.envs.state_space if self.use_centralized_V else self.envs.observation_space
+        
+        print("self.envs.observation_space", self.envs.observation_space(self.envs.possible_agents[0]).shape)
+        print("self.envs.action_space", self.envs.action_space(self.envs.possible_agents[0]).n)
 
         # policy network
         self.policy = Policy(self.all_args,
-                            self.envs.observation_space,
-                            share_observation_space,
-                            self.envs.action_space,
+                            self.envs.observation_space(self.envs.possible_agents[0]),
+                            self.envs.observation_space(self.envs.possible_agents[0]),
+                            self.envs.action_space(self.envs.possible_agents[0]),
                             device = self.device)
+        
 
         if self.model_dir is not None:
             self.restore()
@@ -93,9 +97,9 @@ class Runner(object):
         # buffer
         self.buffer = SharedReplayBuffer(self.all_args,
                                         self.num_agents,
-                                        self.envs.observation_space,
-                                        share_observation_space,
-                                        self.envs.action_space[0])
+                                        self.envs.observation_space(self.envs.possible_agents[0]),
+                                        self.envs.observation_space(self.envs.possible_agents[0]),
+                                        self.envs.action_space(self.envs.possible_agents[0]))
 
     def run(self):
         """Collect training data, perform training updates, and evaluate policy."""
@@ -154,28 +158,28 @@ class Runner(object):
                 policy_vnorm_state_dict = torch.load(str(self.model_dir) + '/vnorm.pt')
                 self.trainer.value_normalizer.load_state_dict(policy_vnorm_state_dict)
                 
-     def log_train(self, train_infos, total_num_steps):
-         """
-         Log training info.
-         :param train_infos: (dict) information about training update.
-         :param total_num_steps: (int) total number of training env steps.
-         """
-         for k, v in train_infos.items():
-             if self.use_wandb:
-                 wandb.log({k: v}, step=total_num_steps)
-             else:
-                 self.writter.add_scalars(k, {k: v}, total_num_steps)
+    def log_train(self, train_infos, total_num_steps):
+        """
+        Log training info.
+        :param train_infos: (dict) information about training update.
+        :param total_num_steps: (int) total number of training env steps.
+        """
+        for k, v in train_infos.items():
+            if self.use_wandb:
+                wandb.log({k: v}, step=total_num_steps)
+            else:
+                self.writter.add_scalars(k, {k: v}, total_num_steps)
 
-     def log_env(self, env_infos, total_num_steps):
-         """
-         Log env info.
-         :param env_infos: (dict) information about env state.
-         :param total_num_steps: (int) total number of training env steps.
-         """
-         for k, v in env_infos.items():
-             if len(v)>0:
-                 if self.use_wandb:
-                     wandb.log({k: np.mean(v)}, step=total_num_steps)
-                 else:
-                     self.writter.add_scalars(k, {k: np.mean(v)}, total_num_steps)
+    def log_env(self, env_infos, total_num_steps):
+        """
+        Log env info.
+        :param env_infos: (dict) information about env state.
+        :param total_num_steps: (int) total number of training env steps.
+        """
+        for k, v in env_infos.items():
+            if len(v)>0:
+                if self.use_wandb:
+                    wandb.log({k: np.mean(v)}, step=total_num_steps)
+                else:
+                    self.writter.add_scalars(k, {k: np.mean(v)}, total_num_steps)
 
