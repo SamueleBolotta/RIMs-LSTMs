@@ -72,6 +72,7 @@ class MPERunner(Runner):
                 
                 obs, obs_n = batchify_obs(next_obs, device)
                 print("shape of obs", obs.shape)
+                
                 self.warmup(obs)
                 
                 # Sample actions
@@ -119,15 +120,8 @@ class MPERunner(Runner):
                 self.eval(total_num_steps)
 
     def warmup(self, obs):
-
-        # replay buffer
-        if self.use_centralized_V:
-            share_obs = obs.reshape(self.n_rollout_threads, -1)
-            share_obs = np.expand_dims(share_obs, 1).repeat(self.num_agents, axis=1)
-        else:
-            share_obs = obs
-
-        self.buffer.share_obs[0] = share_obs.copy()
+        obs = _t2n(obs)
+        self.buffer.share_obs[0] = obs.copy()
         self.buffer.obs[0] = obs.copy()
 
     @torch.no_grad()
