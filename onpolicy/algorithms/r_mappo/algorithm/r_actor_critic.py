@@ -37,8 +37,8 @@ class R_Actor(nn.Module, torch_ac.RecurrentACModel):
         self.tpdv = dict(dtype=torch.float32, device=device)
 
         obs_shape = get_shape_from_obs_space(obs_space)
-        base = CNNBase if len(obs_shape) == 3 else MLPBase
-        self.base = nn.Sequential(
+                
+        base1 = nn.Sequential(
             self._layer_init(nn.Conv2d(4, 32, 3, padding=1)),
             nn.MaxPool2d(2),
             nn.ReLU(),
@@ -54,7 +54,12 @@ class R_Actor(nn.Module, torch_ac.RecurrentACModel):
             self._layer_init(nn.Linear(512, 64)),
             nn.ReLU(),
         )
-
+        
+        base2 = MLPBase
+        
+        self.base = base1 if len(obs_shape) == 3 else base2(args, obs_shape)
+        print("self base", self.base)
+        
         if self._use_naive_recurrent_policy or self._use_recurrent_policy:
             if self._use_rims_policy_LSTM:  
                 self.rnn = RIMCell(torch.device('cuda' if torch.cuda.is_available() else 'cpu'), self.hidden_size, self.hidden_size // self._num_units, self._num_units, 1, 'LSTM', input_value_size = 64, comm_value_size = self.hidden_size // self._num_units)
@@ -193,7 +198,7 @@ class R_Critic(nn.Module, torch_ac.RecurrentACModel):
         obs_shape = get_shape_from_obs_space(obs_space)
         base = CNNBase if len(obs_shape) == 3 else MLPBase
         
-        self.base = nn.Sequential(
+        base1 = nn.Sequential(
             self._layer_init(nn.Conv2d(4, 32, 3, padding=1)),
             nn.MaxPool2d(2),
             nn.ReLU(),
@@ -209,6 +214,10 @@ class R_Critic(nn.Module, torch_ac.RecurrentACModel):
             self._layer_init(nn.Linear(512, 64)),
             nn.ReLU(),
         )
+        
+        base2 = MLPBase
+        
+        self.base = base1 if len(obs_shape) == 3 else base2(args, obs_shape)
 
         if self._use_naive_recurrent_policy or self._use_recurrent_policy:
             if self._use_rims_policy_LSTM:  
