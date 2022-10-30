@@ -11,9 +11,7 @@ import imageio
 
 def unbatchify(x, env):
     """Converts np array to PZ style arguments."""
-    x = x.cpu().numpy()
-    x = {a: x[i] for i, a in enumerate(env.possible_agents)}
-
+    x = {a: int(x[0][i]) for i, a in enumerate(env.possible_agents)}
     return x
 
 def batchify_obs(obs, device):
@@ -21,16 +19,21 @@ def batchify_obs(obs, device):
     # convert to list of np arrays
     obs = np.stack([obs[a] for a in obs], axis=0)
     # transpose to be (batch, channel, height, width)
-    obs_n = obs.transpose(0, -1, 1, 2)
+    if len(obs.shape) == 4:
+        obs_n = obs.transpose(0, -1, 1, 2)
+    else:
+        obs_n = obs
+        
     # convert to torch
     obs = torch.tensor(obs_n).to(device)
 
     return obs, obs_n
 
 def topetzoo(agent_id, envs, num_agents):
+    print("envs", envs)
     if envs == 'butterfly-pistonball': 
         basnm = 'piston'
-    elif envs == 'simple_spread_v2':
+    elif envs == 'MPE':
         basnm = "agent"   
     result = ["{}_{}".format(basnm, i) for i in range(0, num_agents)]
     return result[agent_id]
@@ -39,23 +42,21 @@ def topetzoo(agent_id, envs, num_agents):
 def before_pz(actions, envs, num_agents):
     if envs == 'butterfly-pistonball': 
         basnm = 'piston'
-    elif envs == 'simple_spread_v2':
+    elif envs == 'MPE':
         basnm = "agent"
     actions_step = {"{}_{}".format(basnm, i):int(actions[0][i]) for i in range(0, num_agents)}
     return actions_step
 
-def after_pz(obs, rewards, terms, truncs, infos):
+def after_pz(obs, rewards, dones, infos):
     
     obs = np.array(list(obs.values()))
     rewards = np.array(list(rewards.values()))
-    terms = np.array(list(terms.values()))
-    truncs = np.array(list(truncs.values()))
+    dones = np.array(list(dones.values()))
     infos = np.array(list(infos.values()))
     obs = obs[np.newaxis, :, :]
     rewards = rewards[np.newaxis, :, np.newaxis]
-    terms = terms[np.newaxis, :]
-    truncs = truncs[np.newaxis, :]
-    return obs, rewards, terms, truncs, infos
+    dones = dones[np.newaxis, :]
+    return obs, rewards, dones, infos
 
 def _t2n(x):
     return x.detach().cpu().numpy()
@@ -81,18 +82,18 @@ class MPERunner(Runner):
             for step in range(self.episode_length):
                 
                 obs, obs_n = batchify_obs(next_obs, device)
-                print("shape of obs", obs.shape)
-
-                self.warmup(obs)
+                
+                self.warmup(obs_n)
                 
                 # Sample actions
                 values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env = self.collect(step)
-              
-                next_obs, rewards, terms, truncs, infos = self.envs.step(
-                    unbatchify(actions, env)
+                actions = unbatchify(actions, self.envs)
+                print("actions", actions)
+                next_obs, rewards, dones, infos = self.envs.step(
+                    actions
                 )
                 
-                obs, rewards, terms, truncs, infos = after_pz(obs, rewards, terms, truncs, infos)
+                obs, rewards, dones, infos = after_pz(obs, rewards, dones, infos)
                                 
                 data = obs, rewards, terms, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic 
                
@@ -133,17 +134,24 @@ class MPERunner(Runner):
                 self.eval(total_num_steps)
 
     def warmup(self, obs):
-        share_obs = []
-        for o in obs:
-            share_obs.append(list(chain(*o)))
-        share_obs = np.array(share_obs)
+        share_obs = self.envs.state_space
 
         for agent_id in range(self.num_agents):
             if not self.use_centralized_V:
-                share_obs = np.array(list(obs[:, agent_id]))
-            
-            #self.buffer[agent_id].share_obs[0] = share_obs.copy()
-            self.buffer[agent_id].obs[0] = np.array(list(obs[:, agent_id])).copy()
+                print("shape of obs in warmup", np.shape(obs))
+                print("number od dims of obs in warmup", obs.ndim)
+
+                if obs.ndim == 5:
+                    share_obs = np.array(list(obs[agent_id, :, :, :]))
+                elif obs.ndim == 2:
+                    share_obs = np.array(list(obs[agent_id, :]))
+                print("shape of obs in warmup", share_obs)
+
+            self.buffer[agent_id].share_obs[0] = share_obs.copy()
+            if obs.ndim == 5:
+                self.buffer[agent_id].obs[0] = np.array(list(obs[agent_id, :, :, :])).copy()
+            elif obs.ndim == 3:
+                self.buffer[agent_id].obs[0] = np.array(list(obs[agent_id, :])).copy()
 
     @torch.no_grad()
     def collect(self, step):
