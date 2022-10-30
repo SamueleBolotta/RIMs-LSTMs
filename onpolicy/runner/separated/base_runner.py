@@ -11,10 +11,10 @@ from onpolicy.utils.util import update_linear_schedule
 
 
 def topetzoo(agent_id, envs, num_agents):
-    print("envs", envs)
+    print("setting up base runner for agent {}".format(agent_id))
     if envs == 'butterfly-pistonball': 
         basn = 'piston'
-    elif envs == 'simple_spread_v2':
+    elif envs == 'MPE':
         basn = "agent"   
     result = ["{}_{}".format(basn, i) for i in range(0, num_agents)]
     return result[agent_id]
@@ -103,9 +103,9 @@ class Runner(object):
             tr = TrainAlgo(self.all_args, self.policy[agent_id], device = self.device)
             # buffer
             obs_spa = self.envs.observation_space(agent_id_pet)
-            print("shape of obs in base", obs_spa)
             act_spa = self.envs.action_space(agent_id_pet)
             share_observation_space = self.envs.state_space if self.use_centralized_V else self.envs.observation_space(agent_id_pet)
+            
             bu = SeparatedReplayBuffer(self.all_args,
                                        obs_spa,
                                        share_observation_space,
