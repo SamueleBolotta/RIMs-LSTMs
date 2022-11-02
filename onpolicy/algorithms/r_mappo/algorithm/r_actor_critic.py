@@ -9,10 +9,8 @@ from onpolicy.algorithms.utils.act import ACTLayer
 from onpolicy.algorithms.utils.popart import PopArt
 from onpolicy.utils.util import get_shape_from_obs_space
 from onpolicy.algorithms.utils.RIM import RIMCell
-import torch_ac
 
-
-class R_Actor(nn.Module, torch_ac.RecurrentACModel):
+class R_Actor(nn.Module):
     """
     Actor network class for MAPPO. Outputs actions given observations.
     :param args: (argparse.Namespace) arguments containing relevant model information.
@@ -172,7 +170,7 @@ class R_Actor(nn.Module, torch_ac.RecurrentACModel):
         return action_log_probs, dist_entropy
 
 
-class R_Critic(nn.Module, torch_ac.RecurrentACModel):
+class R_Critic(nn.Module):
     """
     Critic network class for MAPPO. Outputs value function predictions given centralized input (MAPPO) or
                             local observations (IPPO).
