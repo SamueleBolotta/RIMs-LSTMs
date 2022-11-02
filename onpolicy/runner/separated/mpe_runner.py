@@ -31,7 +31,6 @@ def batchify_obs(obs, device):
     return obs, obs_n
 
 def topetzoo(agent_id, envs, num_agents):
-    print("envs", envs)
     if envs == 'butterfly-pistonball': 
         basnm = 'piston'
     elif envs == 'MPE':
@@ -49,7 +48,6 @@ def before_pz(actions, envs, num_agents):
     return actions_step
 
 def after_pz(obs, rewards, dones, infos):
-    print("obs", obs)
     obs = np.array(list(obs.values()))
     rewards = np.array(list(rewards.values()))
     dones = np.array(list(dones.values()))
@@ -89,7 +87,6 @@ class MPERunner(Runner):
                 # Sample actions
                 values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env = self.collect(step)
                 actions_pz = unbatchify(actions, self.envs)
-                print("actions", actions)
                 next_obs, rewards, dones, infos = self.envs.step(
                     actions_pz
                 )
@@ -147,7 +144,6 @@ class MPERunner(Runner):
                     share_obs = np.array(list(obs[agent_id, :, :, :]))
                 elif obs.ndim == 3:
                     share_obs = np.array(list(obs[agent_id, :]))
-                print("shape of obs in warmup", share_obs)
 
             self.buffer[agent_id].share_obs[0] = share_obs.copy()
             
@@ -155,13 +151,8 @@ class MPERunner(Runner):
             if obs.ndim == 5:
                 self.buffer[agent_id].obs[0] = np.array(list(obs[agent_id, :, :, :])).copy()
             elif obs.ndim == 3:
-                print("obs", obs)
                 temp = np.array(list(obs[agent_id, :]))
-                print("temp", temp)
                 self.buffer[agent_id].obs[0] = np.array(list(obs[agent_id, :])).copy()
-            print("obs", np.shape(obs))
-            print("obs shared", np.shape(share_obs))
-
 
     @torch.no_grad()
     def collect(self, step):
