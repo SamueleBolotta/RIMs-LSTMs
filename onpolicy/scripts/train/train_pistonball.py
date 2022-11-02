@@ -98,20 +98,24 @@ def main(args):
     if all_args.n_rollout_threads == 1:
         stack_size = 4
         frame_size = (64, 64)
-        envs = pistonball_v6.parallel_env(render_mode="rgb_array", continuous=False, max_cycles=250)
+        envs = pistonball_v6.parallel_env()
         envs = color_reduction_v0(envs)
         envs = resize_v1(envs, frame_size[0], frame_size[1])
         envs = frame_stack_v1(envs, stack_size=stack_size)
+        envs = ss.pettingzoo_env_to_vec_env_v1(envs)
+        envs = ss.concat_vec_envs_v1(envs, 8, num_cpus=4, base_class=’gym’)
         
     # eval env init
     if all_args.n_rollout_threads == 1:
         stack_size = 4
         frame_size = (64, 64)
-        eval_envs = pistonball_v6.parallel_env(render_mode="rgb_array", continuous=False, max_cycles=250)
+        eval_envs = pistonball_v6.parallel_env()
         eval_envs = color_reduction_v0(eval_envs)
         eval_envs = resize_v1(eval_envs, frame_size[0], frame_size[1])
         eval_envs = frame_stack_v1(eval_envs, stack_size=stack_size)
-                
+        eval_envs = ss.pettingzoo_env_to_vec_env_v1(eval_envs)
+        eval_envs = ss.concat_vec_envs_v1(eval_envs, 8, num_cpus=4, base_class=’gym’)
+        
     config = {
         "all_args": all_args,
         "envs": envs,
