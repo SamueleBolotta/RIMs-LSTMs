@@ -31,18 +31,22 @@ def batchify_obs(obs, device):
     return obs, obs_n
 
 def topetzoo(agent_id, envs, num_agents):
-    if envs == 'butterfly-pistonball': 
+    if envs == 'BUTTERFLY-pistonball': 
         basnm = 'piston'
-    elif envs == 'MPE':
-        basnm = "agent"   
+    elif envs == 'BUTTERFLY-pong':
+        basnm = "paddle"
+    elif envs == 'MPE-simple.spread':
+        basnm = "agent" 
     result = ["{}_{}".format(basnm, i) for i in range(0, num_agents)]
     return result[agent_id]
     
         
 def before_pz(actions, envs, num_agents):
-    if envs == 'butterfly-pistonball': 
+    if envs == 'BUTTERFLY-pistonball': 
         basnm = 'piston'
-    elif envs == 'MPE':
+    elif envs == 'BUTTERFLY-pong':
+        basnm = "paddle"
+    elif envs == 'MPE-simple.spread':
         basnm = "agent"
     actions_step = {"{}_{}".format(basnm, i):int(actions[0][i]) for i in range(0, num_agents)}
     return actions_step
@@ -75,7 +79,7 @@ class MPERunner(Runner):
                 for agent_id in range(self.num_agents):
                     self.trainer[agent_id].policy.lr_decay(episode, episodes)
                     
-            next_obs = self.envs.reset(seed=None)   
+            next_obs = self.envs.reset()   
             start = time.time()
 
             for step in range(self.episode_length):
