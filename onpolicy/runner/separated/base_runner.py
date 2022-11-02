@@ -12,7 +12,7 @@ from onpolicy.utils.util import update_linear_schedule
 
 def topetzoo(agent_id, envs, num_agents):
     print("setting up base runner for agent {}".format(agent_id))
-    if envs == 'butterfly-pistonball': 
+    if envs == 'BUTTERFLY': 
         basn = 'piston'
     elif envs == 'MPE':
         basn = "agent"   
