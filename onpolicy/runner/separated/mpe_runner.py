@@ -18,6 +18,7 @@ def batchify_obs(obs, device):
     """Converts PZ style observations to batch of torch arrays."""
     # convert to list of np arrays
     obs = np.stack([obs[a] for a in obs], axis=0)
+    obs = obs[np.newaxis, :, :]
     # transpose to be (batch, channel, height, width)
     if len(obs.shape) == 4:
         obs_n = obs.transpose(0, -1, 1, 2)
@@ -48,7 +49,7 @@ def before_pz(actions, envs, num_agents):
     return actions_step
 
 def after_pz(obs, rewards, dones, infos):
-    
+    print("obs", obs)
     obs = np.array(list(obs.values()))
     rewards = np.array(list(rewards.values()))
     dones = np.array(list(dones.values()))
@@ -87,15 +88,15 @@ class MPERunner(Runner):
                 
                 # Sample actions
                 values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env = self.collect(step)
-                actions = unbatchify(actions, self.envs)
+                actions_pz = unbatchify(actions, self.envs)
                 print("actions", actions)
                 next_obs, rewards, dones, infos = self.envs.step(
-                    actions
+                    actions_pz
                 )
                 
-                obs, rewards, dones, infos = after_pz(obs, rewards, dones, infos)
+                obs, rewards, dones, infos = after_pz(next_obs, rewards, dones, infos)
                                 
-                data = obs, rewards, terms, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic 
+                data = obs, rewards, dones, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic 
                
                 # insert data into buffer
                 self.insert(data)
@@ -134,24 +135,33 @@ class MPERunner(Runner):
                 self.eval(total_num_steps)
 
     def warmup(self, obs):
-        share_obs = self.envs.state_space
+
+        share_obs = []
+        for o in obs:
+            share_obs.append(list(chain(*o)))
+        share_obs = np.array(share_obs)
 
         for agent_id in range(self.num_agents):
             if not self.use_centralized_V:
-                print("shape of obs in warmup", np.shape(obs))
-                print("number od dims of obs in warmup", obs.ndim)
-
                 if obs.ndim == 5:
                     share_obs = np.array(list(obs[agent_id, :, :, :]))
-                elif obs.ndim == 2:
+                elif obs.ndim == 3:
                     share_obs = np.array(list(obs[agent_id, :]))
                 print("shape of obs in warmup", share_obs)
 
             self.buffer[agent_id].share_obs[0] = share_obs.copy()
+            
+            obs = obs[0]
             if obs.ndim == 5:
                 self.buffer[agent_id].obs[0] = np.array(list(obs[agent_id, :, :, :])).copy()
             elif obs.ndim == 3:
+                print("obs", obs)
+                temp = np.array(list(obs[agent_id, :]))
+                print("temp", temp)
                 self.buffer[agent_id].obs[0] = np.array(list(obs[agent_id, :])).copy()
+            print("obs", np.shape(obs))
+            print("obs shared", np.shape(share_obs))
+
 
     @torch.no_grad()
     def collect(self, step):
@@ -210,12 +220,12 @@ class MPERunner(Runner):
         return values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env
 
     def insert(self, data):
-        obs, rewards, terms, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic = data
+        obs, rewards, dones, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic = data
 
-        rnn_states[terms == True] = np.zeros(((terms == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
-        rnn_states_critic[terms == True] = np.zeros(((terms == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
+        rnn_states[dones == True] = np.zeros(((dones == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
+        rnn_states_critic[dones == True] = np.zeros(((dones == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
         masks = np.ones((self.n_rollout_threads, self.num_agents, 1), dtype=np.float32)
-        masks[terms == True] = np.zeros(((terms == True).sum(), 1), dtype=np.float32)
+        masks[dones == True] = np.zeros(((dones == True).sum(), 1), dtype=np.float32)
 
         share_obs = []
         for o in obs:
