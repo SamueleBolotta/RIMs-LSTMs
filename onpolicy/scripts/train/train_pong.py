@@ -94,11 +94,11 @@ def main(args):
     num_agents = all_args.num_agents
 
     # env init
-    from pettingzoo.butterfly import cooperative_pong_v4    
+    from pettingzoo.butterfly import cooperative_pong_v5  
     if all_args.n_rollout_threads == 1:
         stack_size = 4
         frame_size = (64, 64)
-        envs = cooperative_pong_v4.parallel_env()
+        envs = cooperative_pong_v5.parallel_env()
         envs = color_reduction_v0(envs)
         envs = resize_v1(envs, frame_size[0], frame_size[1])
         envs = frame_stack_v1(envs, stack_size=stack_size)
@@ -107,7 +107,7 @@ def main(args):
     if all_args.n_rollout_threads == 1:
         stack_size = 4
         frame_size = (64, 64)
-        eval_envs = cooperative_pong_v4.parallel_env()
+        eval_envs = cooperative_pong_v5.parallel_env()
         eval_envs = color_reduction_v0(eval_envs)
         eval_envs = resize_v1(eval_envs, frame_size[0], frame_size[1])
         eval_envs = frame_stack_v1(eval_envs, stack_size=stack_size)
