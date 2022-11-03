@@ -20,9 +20,9 @@ from onpolicy.scripts.train.env_wrappers import SubprocVecEnv, DummyVecEnv
 def make_train_env(all_args):
     def get_env_fn(rank):
         def init_env():
-            if all_args.env_name == "MPE":
+            if all_args.env_name == "MPE-simple.spread":
                 envs = simple_spread_v2.parallel_env(N=3, local_ratio=0.5, max_cycles=int(all_args.num_env_steps), continuous_actions=False)
-            envs.seed(all_args.seed + rank * 1000)
+            envs.reset(seed=all_args.seed + rank * 1000)
             return envs
         return init_env
     if all_args.n_rollout_threads == 1:
@@ -33,9 +33,9 @@ def make_train_env(all_args):
 def make_eval_env(all_args):
     def get_env_fn(rank):
         def init_env():
-            if all_args.env_name == "MPE":
+            if all_args.env_name == "MPE-simple.spread":
                 envs = simple_spread_v2.parallel_env(N=3, local_ratio=0.5, max_cycles=int(all_args.num_env_steps), continuous_actions=False)
-            envs.seed(all_args.seed + rank * 1000)
+            envs.reset(seed=all_args.seed + rank * 1000)
             return envs
         return init_env
     if all_args.n_rollout_threads == 1:
