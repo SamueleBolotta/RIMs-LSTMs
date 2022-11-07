@@ -5,13 +5,14 @@ import numpy as np
 from itertools import chain
 import torch
 from tensorboardX import SummaryWriter
+from gym import spaces
 
 from onpolicy.utils.separated_buffer import SeparatedReplayBuffer
 from onpolicy.utils.util import update_linear_schedule
 
 
+ 
 def topetzoo(agent_id, envs, num_agents):
-    print("envs", envs)
     print("setting up base runner for agent {}".format(agent_id))
     if envs == 'BUTTERFLY-pistonball': 
         basnm = 'piston'
@@ -81,14 +82,21 @@ class Runner(object):
 
         from onpolicy.algorithms.r_mappo.r_mappo import R_MAPPO as TrainAlgo
         from onpolicy.algorithms.r_mappo.algorithm.rMAPPOPolicy import R_MAPPOPolicy as Policy
-
+        
+        share_obs_dim = 0
         self.policy = []
         for agent_id in range(self.num_agents):
             agent_id_pet = topetzoo(agent_id, self.env_name, self.num_agents)
-            print("self.envs.observation_space", self.envs.observation_space)
             obs_spa = self.envs.observation_space(agent_id_pet)
             act_spa = self.envs.action_space(agent_id_pet)
-            share_observation_space = self.envs.state_space if self.use_centralized_V else self.envs.observation_space(agent_id_pet)
+            obs_dim = obs_spa.shape[0]
+            print("obs dim", obs_dim)
+            share_obs_dim = obs_dim * self.num_agents
+            state_space = spaces.Box(low=-np.inf, high=+np.inf, shape=(share_obs_dim,), dtype=np.float32)
+            share_observation_space = state_space if self.use_centralized_V else self.envs.observation_space(agent_id_pet)
+            print("share_observation_space", share_observation_space)
+            print("observation_space", obs_spa)
+
             # policy network
             po = Policy(self.all_args,
                         obs_spa,
@@ -97,6 +105,7 @@ class Runner(object):
                         device = self.device)
             self.policy.append(po)
 
+        
         if self.model_dir is not None:
             self.restore()
 
@@ -108,7 +117,10 @@ class Runner(object):
             # buffer
             obs_spa = self.envs.observation_space(agent_id_pet)
             act_spa = self.envs.action_space(agent_id_pet)
-            share_observation_space = self.envs.state_space if self.use_centralized_V else self.envs.observation_space(agent_id_pet)
+            obs_dim = obs_spa.shape[0]
+            share_obs_dim = obs_dim * self.num_agents
+            state_space = spaces.Box(low=-np.inf, high=+np.inf, shape=(share_obs_dim,), dtype=np.float32)
+            share_observation_space = state_space if self.use_centralized_V else self.envs.observation_space(agent_id_pet)
             
             bu = SeparatedReplayBuffer(self.all_args,
                                        obs_spa,
