@@ -26,7 +26,8 @@ def make_train_env(all_args):
             return envs
         return init_env
     if all_args.n_rollout_threads == 1:
-        return DummyVecEnv([get_env_fn(0)])
+        envs = simple_spread_v2.parallel_env(N=3, local_ratio=0.5, max_cycles=int(all_args.num_env_steps), continuous_actions=False)
+        return envs
     else:
         return SubprocVecEnv([get_env_fn(i) for i in range(all_args.n_rollout_threads)])
 
@@ -39,7 +40,9 @@ def make_eval_env(all_args):
             return envs
         return init_env
     if all_args.n_rollout_threads == 1:
-        return DummyVecEnv([get_env_fn(0)])
+        
+        envs = simple_spread_v2.parallel_env(N=3, local_ratio=0.5, max_cycles=int(all_args.num_env_steps), continuous_actions=False)
+        return envs
     else:
         return SubprocVecEnv([get_env_fn(i) for i in range(all_args.n_eval_rollout_threads)])
 
