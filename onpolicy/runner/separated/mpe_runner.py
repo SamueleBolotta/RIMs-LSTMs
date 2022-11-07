@@ -10,7 +10,6 @@ from onpolicy.runner.separated.base_runner import Runner
 import imageio
 
 def generator_possible_agents(envs, num_agents):
-    print("envs", envs)
     if envs == 'BUTTERFLY-pistonball': 
         basnm = 'piston'
     elif envs == 'BUTTERFLY-pong':
@@ -22,11 +21,7 @@ def generator_possible_agents(envs, num_agents):
 
 def unbatchify(x, num_ag):
     """Converts np array to PZ style arguments."""
-    print("actions", x[0][0])
-    print("possible agents", num_ag)
     x = {a: x[i][0] for i, a in enumerate(num_ag)}
-    print("actions", x)
-
     return x
 
 def batchify_obs(obs, device):
@@ -39,7 +34,7 @@ def batchify_obs(obs, device):
         obs_n = obs.transpose(0, -1, 1, 2)
     else:
         obs_n = obs
-    
+   
     # convert to torch
     obs = torch.tensor(obs_n).to(device)
 
@@ -67,6 +62,7 @@ def before_pz(actions, envs, num_agents):
     return actions_step
 
 def after_pz(obs, rewards, dones, infos):
+       
     obs = np.array(list(obs.values()))
     rewards = np.array(list(rewards.values()))
     dones = np.array(list(dones.values()))
@@ -74,6 +70,7 @@ def after_pz(obs, rewards, dones, infos):
     obs = obs[np.newaxis, :, :]
     rewards = rewards[np.newaxis, :, np.newaxis]
     dones = dones[np.newaxis, :]
+    dones = list(dones)
     return obs, rewards, dones, infos
 
 def _t2n(x):
@@ -117,14 +114,24 @@ class MPERunner(Runner):
                 for i in range(self.n_rollout_threads):
                     actions_pz = unbatchify(actions[i], possible_agents)
                     act_list.append(actions_pz)
-                print("act", act_list)
-                next_obs, rewards, dones, infos = self.envs.step(
-                    actions_pz
-                )
+
+                    next_obs, rewards, dones, infos = self.envs.step(actions_pz)
+                    
+                ob_l = []
+                rew = []
+                do = []
+                infs = []
                 
-                obs, rewards, dones, infos = after_pz(next_obs, rewards, dones, infos)
-                                
-                data = obs, rewards, dones, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic 
+                for i in range(self.n_rollout_threads):
+
+                    obs__, rewards__, dones__, infos__ = after_pz(next_obs[i], rewards[i], dones[i], infos[i])
+                    ob_l.append(obs__)
+                    rew.append(rewards__)
+                    do.append(dones__)
+                    infs.append(infos__)
+
+                print("Dones", do)               
+                data = obs, rew, do, infs, values, actions, action_log_probs, rnn_states, rnn_states_critic 
                
                 # insert data into buffer
                 self.insert(data)
@@ -163,11 +170,6 @@ class MPERunner(Runner):
                 self.eval(total_num_steps)
 
     def warmup(self, obs):
-        
-        print("type obs", type(obs))
-        print("dim obs", np.shape(obs))
-        print("obs", obs)
-        print("len obs", len(obs))
         
         obs = np.squeeze(obs, axis=1)
         
