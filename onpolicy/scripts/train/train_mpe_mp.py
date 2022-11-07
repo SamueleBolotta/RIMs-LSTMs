@@ -122,29 +122,9 @@ def main(args):
     torch.cuda.manual_seed_all(all_args.seed)
     np.random.seed(all_args.seed)
     
-    num_env_steps = all_args.num_env_steps
-    num_agents = all_args.num_agents
-
-    # env init
-    from pettingzoo.mpe import simple_spread_v2   
     envs = make_train_env(all_args)
     eval_envs = make_eval_env(all_args) if all_args.use_eval else None
-    
-    if all_args.n_rollout_threads == 1:
-        envs = simple_spread_v2.parallel_env(N=3, local_ratio=0.5, max_cycles=int(num_env_steps), continuous_actions=False)
-    else:    
-        import supersuit as ss
-        envs = simple_spread_v2.parallel_env(N=3, local_ratio=0.5, max_cycles=int(num_env_steps), continuous_actions=False)
-        envs = ss.pettingzoo_env_to_vec_env_v1(envs)
-        envs = ss.concat_vec_envs_v1(envs, all_args.n_rollout_threads, num_cpus=4, base_class='gym')
-        
-    # eval env init
-    if all_args.n_rollout_threads == 1:
-        eval_envs = simple_spread_v2.parallel_env(N=3, local_ratio=0.5, max_cycles=int(num_env_steps), continuous_actions=False)
-    else:    
-        eval_envs = simple_spread_v2.parallel_env(N=3, local_ratio=0.5, max_cycles=int(num_env_steps), continuous_actions=False)
-        eval_envs = ss.pettingzoo_env_to_vec_env_v1(eval_envs)
-        eval_envs = ss.concat_vec_envs_v1(eval_envs, all_args.n_rollout_threads, num_cpus=4, base_class='gym')    
+    num_agents = all_args.num_agents
                 
     config = {
         "all_args": all_args,
