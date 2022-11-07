@@ -9,9 +9,24 @@ from onpolicy.utils.util import update_linear_schedule
 from onpolicy.runner.separated.base_runner import Runner
 import imageio
 
-def unbatchify(x, env):
+def generator_possible_agents(envs, num_agents):
+    print("envs", envs)
+    if envs == 'BUTTERFLY-pistonball': 
+        basnm = 'piston'
+    elif envs == 'BUTTERFLY-pong':
+        basnm = "paddle"
+    elif envs == 'MPE-simple.spread':
+        basnm = "agent" 
+    result = ["{}_{}".format(basnm, i) for i in range(0, num_agents)]
+    return result
+
+def unbatchify(x, num_ag):
     """Converts np array to PZ style arguments."""
-    x = {a: int(x[0][i]) for i, a in enumerate(env.possible_agents)}
+    print("actions", x[0][0])
+    print("possible agents", num_ag)
+    x = {a: x[i][0] for i, a in enumerate(num_ag)}
+    print("actions", x)
+
     return x
 
 def batchify_obs(obs, device):
@@ -24,7 +39,7 @@ def batchify_obs(obs, device):
         obs_n = obs.transpose(0, -1, 1, 2)
     else:
         obs_n = obs
-        
+    
     # convert to torch
     obs = torch.tensor(obs_n).to(device)
 
@@ -83,14 +98,26 @@ class MPERunner(Runner):
             start = time.time()
 
             for step in range(self.episode_length):
-                
-                obs, obs_n = batchify_obs(next_obs, device)
-                
-                self.warmup(obs_n)
+                obs_list = []
+                obs_n_list = []
+
+                for i in range(self.n_rollout_threads):
+                    obs, obs_n = batchify_obs(next_obs[i], device)
+                    obs_list.append(obs)
+                    obs_n_list.append(obs_n)
+                    
+                self.warmup(obs_n_list)
                 
                 # Sample actions
                 values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env = self.collect(step)
-                actions_pz = unbatchify(actions, self.envs)
+                
+                possible_agents = generator_possible_agents(self.env_name, self.num_agents)
+                
+                act_list = []
+                for i in range(self.n_rollout_threads):
+                    actions_pz = unbatchify(actions[i], possible_agents)
+                    act_list.append(actions_pz)
+                print("act", act_list)
                 next_obs, rewards, dones, infos = self.envs.step(
                     actions_pz
                 )
@@ -136,7 +163,14 @@ class MPERunner(Runner):
                 self.eval(total_num_steps)
 
     def warmup(self, obs):
-
+        
+        print("type obs", type(obs))
+        print("dim obs", np.shape(obs))
+        print("obs", obs)
+        print("len obs", len(obs))
+        
+        obs = np.squeeze(obs, axis=1)
+        
         share_obs = []
         for o in obs:
             share_obs.append(list(chain(*o)))
@@ -180,15 +214,15 @@ class MPERunner(Runner):
             values.append(_t2n(value))
             action = _t2n(action)
             # rearrange action
-            if self.envs.action_spaces[agent_id_pet].__class__.__name__ == 'MultiDiscrete':
-                for i in range(self.envs.action_spaces[agent_id_pet].shape):
-                    uc_action_env = np.eye(self.envs.action_spaces[agent_id_pet].high[i]+1)[action[:, i]]
+            if self.envs.action_space(agent_id_pet).__class__.__name__ == 'MultiDiscrete':
+                for i in range(self.envs.action_space(agent_id_pet).shape):
+                    uc_action_env = np.eye(self.envs.action_space(agent_id_pet).high[i]+1)[action[:, i]]
                     if i == 0:
                         action_env = uc_action_env
                     else:
                         action_env = np.concatenate((action_env, uc_action_env), axis=1)
-            elif self.envs.action_spaces[agent_id_pet].__class__.__name__ == 'Discrete':
-                action_env = np.squeeze(np.eye(self.envs.action_spaces[agent_id_pet].n)[action], 1)
+            elif self.envs.action_space(agent_id_pet).__class__.__name__ == 'Discrete':
+                action_env = np.squeeze(np.eye(self.envs.action_space(agent_id_pet).n)[action], 1)
             else:
                 raise NotImplementedError
 
@@ -261,15 +295,15 @@ class MPERunner(Runner):
 
                 eval_action = eval_action.detach().cpu().numpy()
                 # rearrange action
-                if self.eval_envs.action_spaces[agent_id_pet].__class__.__name__ == 'MultiDiscrete':
-                    for i in range(self.eval_envs.action_spaces[agent_id_pet].shape):
-                        eval_uc_action_env = np.eye(self.eval_envs.action_spaces[agent_id_pet].high[i]+1)[eval_action[:, i]]
+                if self.eval_envs.action_spaces(agent_id_pet).__class__.__name__ == 'MultiDiscrete':
+                    for i in range(self.eval_envs.action_spaces(agent_id_pet).shape):
+                        eval_uc_action_env = np.eye(self.eval_envs.action_spaces(agent_id_pet).high[i]+1)[eval_action[:, i]]
                         if i == 0:
                             eval_action_env = eval_uc_action_env
                         else:
                             eval_action_env = np.concatenate((eval_action_env, eval_uc_action_env), axis=1)
-                elif self.eval_envs.action_spaces[agent_id_pet].__class__.__name__ == 'Discrete':
-                    eval_action_env = np.squeeze(np.eye(self.eval_envs.action_spaces[agent_id_pet].n)[eval_action], 1)
+                elif self.eval_envs.action_spaces(agent_id_pet).__class__.__name__ == 'Discrete':
+                    eval_action_env = np.squeeze(np.eye(self.eval_envs.action_spaces(agent_id_pet).n)[eval_action], 1)
                 else:
                     raise NotImplementedError
 
