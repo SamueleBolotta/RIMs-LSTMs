@@ -27,6 +27,7 @@ def unbatchify(x, num_ag):
 def batchify_obs(obs, device):
     """Converts PZ style observations to batch of torch arrays."""
     # convert to list of np arrays
+        
     obs = np.stack([obs[a] for a in obs], axis=0)
     obs = obs[np.newaxis, :, :]
     # transpose to be (batch, channel, height, width)
@@ -70,7 +71,6 @@ def after_pz(obs, rewards, dones, infos):
     obs = obs[np.newaxis, :, :]
     rewards = rewards[np.newaxis, :, np.newaxis]
     dones = dones[np.newaxis, :]
-    dones = list(dones)
     return obs, rewards, dones, infos
 
 def _t2n(x):
@@ -102,7 +102,7 @@ class MPERunner(Runner):
                     obs, obs_n = batchify_obs(next_obs[i], device)
                     obs_list.append(obs)
                     obs_n_list.append(obs_n)
-                    
+                                
                 self.warmup(obs_n_list)
                 
                 # Sample actions
@@ -125,13 +125,17 @@ class MPERunner(Runner):
                 for i in range(self.n_rollout_threads):
 
                     obs__, rewards__, dones__, infos__ = after_pz(next_obs[i], rewards[i], dones[i], infos[i])
-                    ob_l.append(obs__)
-                    rew.append(rewards__)
-                    do.append(dones__)
-                    infs.append(infos__)
-
-                print("Dones", do)               
-                data = obs, rew, do, infs, values, actions, action_log_probs, rnn_states, rnn_states_critic 
+                    ob_l.append(obs__[0])
+                    rew.append(rewards__[0])
+                    do.append(dones__.tolist()[0])
+                    infs.append(infos__.tolist())
+                    
+                do = np.array(do)
+                rew = np.array(rew)
+                ob_l = np.array(ob_l)
+                infs = tuple(infs)
+                
+                data = ob_l, rew, do, infs, values, actions, action_log_probs, rnn_states, rnn_states_critic 
                
                 # insert data into buffer
                 self.insert(data)
