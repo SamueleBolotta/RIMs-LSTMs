@@ -36,7 +36,7 @@ class MPERunner(Runner):
                 obs, rewards, dones, infos = self.envs.step(actions_env)
 
                 data = obs, rewards, dones, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic 
-                
+
                 # insert data into buffer
                 self.insert(data)
 
@@ -150,8 +150,8 @@ class MPERunner(Runner):
         return values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env
 
     def insert(self, data):
-        obs, rewards, dones, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic = data
-
+        obs, rewards, dones, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic = data 
+        
         rnn_states[dones == True] = np.zeros(((dones == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
         rnn_states_critic[dones == True] = np.zeros(((dones == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
         masks = np.ones((self.n_rollout_threads, self.num_agents, 1), dtype=np.float32)
