@@ -85,7 +85,8 @@ class MPERunner(Runner):
     def run(self):
 
         episodes = int(self.num_env_steps) // self.episode_length // self.n_rollout_threads
-
+        possible_agents = generator_possible_agents(self.env_name, self.num_agents)
+        
         for episode in range(episodes):
             if self.use_linear_lr_decay:
                 for agent_id in range(self.num_agents):
@@ -95,46 +96,26 @@ class MPERunner(Runner):
             start = time.time()
 
             for step in range(self.episode_length):
-                obs_list = []
-                obs_n_list = []
-
-                for i in range(self.n_rollout_threads):
-                    obs, obs_n = batchify_obs(next_obs[i], device)
-                    obs_list.append(obs)
-                    obs_n_list.append(obs_n)
-                                
+                #Convert PZ style observations to batch of np arrays, for each rollout thread
+                obs_n_list = self.prep(next_obs, device)
+                      
+                #Warmup
                 self.warmup(obs_n_list)
                 
-                # Sample actions
+                #Sample actions
                 values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env = self.collect(step)
-                
-                possible_agents = generator_possible_agents(self.env_name, self.num_agents)
                 
                 act_list = []
                 for i in range(self.n_rollout_threads):
                     actions_pz = unbatchify(actions[i], possible_agents)
                     act_list.append(actions_pz)
-
-                    next_obs, rewards, dones, infos = self.envs.step(actions_pz)
-                    
-                ob_l = []
-                rew = []
-                do = []
-                infs = []
                 
-                for i in range(self.n_rollout_threads):
+                print("act list", act_list)
+                print("actions_pz", actions_pz)
+                next_obs, rewards, dones, infos = self.envs.step(act_list)
+                   
+                do, rew, ob_l, infs = self.after_step(next_obs, rewards, dones, infos)
 
-                    obs__, rewards__, dones__, infos__ = after_pz(next_obs[i], rewards[i], dones[i], infos[i])
-                    ob_l.append(obs__[0])
-                    rew.append(rewards__[0])
-                    do.append(dones__.tolist()[0])
-                    infs.append(infos__.tolist())
-                    
-                do = np.array(do)
-                rew = np.array(rew)
-                ob_l = np.array(ob_l)
-                infs = tuple(infs)
-                
                 data = ob_l, rew, do, infs, values, actions, action_log_probs, rnn_states, rnn_states_critic 
                
                 # insert data into buffer
@@ -172,7 +153,19 @@ class MPERunner(Runner):
             # eval
             if episode % self.eval_interval == 0 and self.use_eval:
                 self.eval(total_num_steps)
+                
+    def prep(self, next_obs, device):
+             
+        obs_list = []
+        obs_n_list = []
 
+        for i in range(self.n_rollout_threads):
+            obs, obs_n = batchify_obs(next_obs[i], device)
+            obs_list.append(obs)
+            obs_n_list.append(obs_n)
+            
+        return obs_n_list
+            
     def warmup(self, obs):
         
         obs = np.squeeze(obs, axis=1)
@@ -198,6 +191,29 @@ class MPERunner(Runner):
                 temp = np.array(list(obs[agent_id, :]))
                 self.buffer[agent_id].obs[0] = np.array(list(obs[agent_id, :])).copy()
 
+    def after_step(next_obs, rewards, dones, infos):
+        
+        ob_l = []
+        rew = []
+        do = []
+        infs = []
+                
+        for i in range(self.n_rollout_threads):
+
+            obs__, rewards__, dones__, infos__ = after_pz(next_obs[i], rewards[i], dones[i], infos[i])
+            ob_l.append(obs__[0])
+            rew.append(rewards__[0])
+            do.append(dones__.tolist()[0])
+            infs.append(infos__.tolist())
+                    
+            do = np.array(do)
+            rew = np.array(rew)
+            ob_l = np.array(ob_l)
+            infs = tuple(infs)
+            
+            
+        return do, rew, ob_l, infs
+    
     @torch.no_grad()
     def collect(self, step):
         values = []
