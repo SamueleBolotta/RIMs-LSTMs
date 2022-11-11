@@ -113,7 +113,13 @@ class MPERunner(Runner):
                 print("act list", act_list)
                 print("actions_pz", actions_pz)
                 next_obs, rewards, dones, infos = self.envs.step(act_list)
-                   
+                
+                print("next obs", next_obs)
+                print("rewards", rewards)
+                print("dones", dones)
+                print("infos", infos)
+
+                
                 do, rew, ob_l, infs = self.after_step(next_obs, rewards, dones, infos)
 
                 data = ob_l, rew, do, infs, values, actions, action_log_probs, rnn_states, rnn_states_critic 
@@ -191,28 +197,31 @@ class MPERunner(Runner):
                 temp = np.array(list(obs[agent_id, :]))
                 self.buffer[agent_id].obs[0] = np.array(list(obs[agent_id, :])).copy()
 
-    def after_step(next_obs, rewards, dones, infos):
+    def after_step(self, next_obs, rewards, dones, infos):
         
-        ob_l = []
-        rew = []
-        do = []
-        infs = []
+        obs_list = []
+        rew_list = []
+        dones_list = []
+        infos_list = []
                 
         for i in range(self.n_rollout_threads):
-
+            
+            print("i", i)
+            print("obs_list", type(obs_list))
+            
             obs__, rewards__, dones__, infos__ = after_pz(next_obs[i], rewards[i], dones[i], infos[i])
-            ob_l.append(obs__[0])
-            rew.append(rewards__[0])
-            do.append(dones__.tolist()[0])
-            infs.append(infos__.tolist())
+            obs_list.append(obs__[0])
+            rew_list.append(rewards__[0])
+            dones_list.append(dones__.tolist()[0])
+            infos_list.append(infos__.tolist())
                     
-            do = np.array(do)
-            rew = np.array(rew)
-            ob_l = np.array(ob_l)
-            infs = tuple(infs)
+        dones_list = np.array(dones_list)
+        rew_list = np.array(rew_list)
+        obs_list = np.array(obs_list)
+        infos_list = tuple(infos_list)
             
             
-        return do, rew, ob_l, infs
+        return dones_list, rew_list, obs_list, infos_list
     
     @torch.no_grad()
     def collect(self, step):
