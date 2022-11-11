@@ -110,16 +110,8 @@ class MPERunner(Runner):
                     actions_pz = unbatchify(actions[i], possible_agents)
                     act_list.append(actions_pz)
                 
-                print("act list", act_list)
-                print("actions_pz", actions_pz)
                 next_obs, rewards, dones, infos = self.envs.step(act_list)
-                
-                print("next obs", next_obs)
-                print("rewards", rewards)
-                print("dones", dones)
-                print("infos", infos)
 
-                
                 do, rew, ob_l, infs = self.after_step(next_obs, rewards, dones, infos)
 
                 data = ob_l, rew, do, infs, values, actions, action_log_probs, rnn_states, rnn_states_critic 
