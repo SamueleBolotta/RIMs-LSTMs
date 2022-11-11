@@ -243,6 +243,7 @@ def worker(remote, parent_remote, env_fn_wrapper):
     while True:
         cmd, data = remote.recv()
         if cmd == 'step':
+            print("Data: ", data)
             ob, reward, done, info = env.step(data)
             if 'bool' in done.__class__.__name__:
                 if done:
