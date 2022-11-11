@@ -243,7 +243,6 @@ def worker(remote, parent_remote, env_fn_wrapper):
     while True:
         cmd, data = remote.recv()
         if cmd == 'step':
-            print("Data: ", data)
             ob, reward, done, info = env.step(data)
             if 'bool' in done.__class__.__name__:
                 if done:
@@ -357,16 +356,9 @@ class DummyVecEnv(ShareVecEnv):
         obs, rews, dones, infos = self.envs[0].step(self.data)
         
         for (i, done) in enumerate(dones):
-            #print("done", done)
-            #print("dones", dones)
-            #print("len dones", len(dones))
-            #print("i outside if loop", i)
            
             if 'bool' in done.__class__.__name__:
                 if done:
-                    #print("last: i in if loop", i)
-                    #print("last: len(self.envs)", len(self.envs))
-                    #print("last: self.envs", self.envs)
                     obs = self.envs[0].reset()
             else:
                 if np.all(done):
