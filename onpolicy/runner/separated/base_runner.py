@@ -13,7 +13,6 @@ from onpolicy.utils.util import update_linear_schedule
 
  
 def topetzoo(agent_id, envs, num_agents):
-    print("setting up base runner for agent {}".format(agent_id))
     if envs == 'BUTTERFLY-pistonball': 
         basnm = 'piston'
     elif envs == 'BUTTERFLY-pong':
@@ -90,13 +89,10 @@ class Runner(object):
             obs_spa = self.envs.observation_space(agent_id_pet)
             act_spa = self.envs.action_space(agent_id_pet)
             obs_dim = obs_spa.shape[0]
-            print("obs dim", obs_dim)
             share_obs_dim = obs_dim * self.num_agents
             state_space = spaces.Box(low=-np.inf, high=+np.inf, shape=(share_obs_dim,), dtype=np.float32)
             share_observation_space = state_space if self.use_centralized_V else self.envs.observation_space(agent_id_pet)
-            print("share_observation_space", share_observation_space)
-            print("observation_space", obs_spa)
-
+            
             # policy network
             po = Policy(self.all_args,
                         obs_spa,
