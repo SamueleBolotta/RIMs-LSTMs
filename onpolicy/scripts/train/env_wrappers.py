@@ -295,13 +295,10 @@ class SubprocVecEnv(ShareVecEnv):
         observation_space, action_space = self.remotes[0].recv()
         ShareVecEnv.__init__(self, len(env_fns), observation_space,
                              action_space)
-
+        
     def step_async(self, actions):
-
-        #for remote, action in zip(self.remotes, actions):
-            #remote.send(('step', action))
-        for remote in self.remotes:
-            remote.send(('step', actions))
+        for remote, action in zip(self.remotes, actions):
+            remote.send(('step', action))
         self.waiting = True
 
     def step_wait(self):
