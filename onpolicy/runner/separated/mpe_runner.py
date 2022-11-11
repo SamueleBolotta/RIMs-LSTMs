@@ -197,10 +197,6 @@ class MPERunner(Runner):
         infos_list = []
                 
         for i in range(self.n_rollout_threads):
-            
-            print("i", i)
-            print("obs_list", type(obs_list))
-            
             obs__, rewards__, dones__, infos__ = after_pz(next_obs[i], rewards[i], dones[i], infos[i])
             obs_list.append(obs__[0])
             rew_list.append(rewards__[0])
