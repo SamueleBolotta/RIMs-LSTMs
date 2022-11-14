@@ -17,7 +17,7 @@ def generator_possible_agents(envs, num_agents):
     elif envs == 'MPE-simple.spread':
         basnm = "agent" 
     elif envs == 'SISL-multiwalker':
-        bansm = "walker"
+        basnm = "walker"
     result = ["{}_{}".format(basnm, i) for i in range(0, num_agents)]
     return result
 
@@ -51,7 +51,7 @@ def topetzoo(agent_id, envs, num_agents):
     elif envs == 'MPE-simple.spread':
         basnm = "agent" 
     elif envs == 'SISL-multiwalker':
-        bansm = "walker"   
+        basnm = "walker"   
     result = ["{}_{}".format(basnm, i) for i in range(0, num_agents)]
     return result[agent_id]
     
@@ -64,7 +64,7 @@ def before_pz(actions, envs, num_agents):
     elif envs == 'MPE-simple.spread':
         basnm = "agent"
     elif envs == 'SISL-multiwalker':
-        bansm = "walker"
+        basnm = "walker"
     actions_step = {"{}_{}".format(basnm, i):int(actions[0][i]) for i in range(0, num_agents)}
     return actions_step
 
@@ -107,7 +107,7 @@ class SISLRunner(Runner):
                       
                 #Warmup
                 self.warmup(obs_n_list)
-                
+                                
                 #Sample actions
                 values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env = self.collect(step)
                 
