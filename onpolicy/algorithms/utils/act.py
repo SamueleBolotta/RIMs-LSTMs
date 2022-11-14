@@ -14,7 +14,9 @@ class ACTLayer(nn.Module):
         super(ACTLayer, self).__init__()
         self.mixed_action = False
         self.multi_discrete = False
-
+        
+        print("action_space.__class__.__name__", action_space.__class__.__name__)
+        
         if action_space.__class__.__name__ == "Discrete":
             action_dim = action_space.n
             self.action_out = Categorical(inputs_dim, action_dim, use_orthogonal, gain)
@@ -76,7 +78,7 @@ class ACTLayer(nn.Module):
             action_log_probs = torch.cat(action_log_probs, -1)
         
         else:
-            action_logits = self.action_out(x, available_actions)
+            action_logits = self.action_out(x)
             actions = action_logits.mode() if deterministic else action_logits.sample() 
             action_log_probs = action_logits.log_probs(actions)
         
