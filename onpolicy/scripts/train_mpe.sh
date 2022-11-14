@@ -1,5 +1,5 @@
 #!/bin/sh
-env="MPE"
+env="MPE-simple.spread"
 scenario="simple_spread"  # simple_speaker_listener # simple_reference
 num_landmarks=3
 num_agents=3
