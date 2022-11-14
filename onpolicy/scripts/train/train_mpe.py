@@ -143,9 +143,9 @@ def main(args):
         from onpolicy.runner.shared.mpe_runner import MPERunner as Runner
     else:
         if all_args.n_rollout_threads == 1: 
-            from onpolicy.runner.separated.mpe_runner_mono import MPERunner as Runner
+            from onpolicy.runner.separated.mpe.mpe_runner_mono import MPERunner as Runner
         else:
-            from onpolicy.runner.separated.mpe_runner_multi import MPERunner as Runner
+            from onpolicy.runner.separated.mpe.mpe_runner_multi import MPERunner as Runner
 
     runner = Runner(config)
     runner.run()
