@@ -1,5 +1,5 @@
 #!/bin/sh
-env="SISL"
+env="SISL-multiwalker"
 scenario="multiwalker"  # simple_speaker_listener # simple_reference
 num_agents=3
 algo="rmappo"
