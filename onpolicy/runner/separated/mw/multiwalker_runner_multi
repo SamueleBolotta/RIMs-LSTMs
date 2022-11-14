@@ -6,7 +6,7 @@ from itertools import chain
 import torch
 
 from onpolicy.utils.util import update_linear_schedule
-from onpolicy.runner.separated.mpe.base_runner_multi import Runner
+from onpolicy.runner.separated.mw.base_runner_multi import Runner
 import imageio
 
 def generator_possible_agents(envs, num_agents):
