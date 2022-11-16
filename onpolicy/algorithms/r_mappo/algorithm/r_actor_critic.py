@@ -55,9 +55,7 @@ class R_Actor(nn.Module):
         
         base2 = MLPBase
         
-        self.base = base1 if len(obs_shape) == 3 else base2(args, obs_shape)
-        print("self base", self.base)
-        
+        self.base = base1 if len(obs_shape) == 3 else base2(args, obs_shape)        
         if self._use_naive_recurrent_policy or self._use_recurrent_policy:
             if self._use_rims_policy_LSTM:  
                 self.rnn = RIMCell(torch.device('cuda' if torch.cuda.is_available() else 'cpu'), self.hidden_size, self.hidden_size // self._num_units, self._num_units, 1, 'LSTM', input_value_size = 64, comm_value_size = self.hidden_size // self._num_units)
