@@ -243,15 +243,15 @@ def worker(remote, parent_remote, env_fn_wrapper):
     while True:
         cmd, data = remote.recv()
         if cmd == 'step':
-            ob, reward, done, info = env.step(data)
-            if 'bool' in done.__class__.__name__:
-                if done:
+            ob, reward, terms, truncs, info = env.step(data)
+            if 'bool' in terms.__class__.__name__:
+                if terms:
                     ob = env.reset()
             else:
-                if np.all(done):
+                if np.all(terms):
                     ob = env.reset()
 
-            remote.send((ob, reward, done, info))
+            remote.send((ob, reward, terms, truncs, info))
         elif cmd == 'reset':
             ob = env.reset()
             remote.send((ob))
@@ -303,8 +303,8 @@ class SubprocVecEnv(ShareVecEnv):
     def step_wait(self):
         results = [remote.recv() for remote in self.remotes]
         self.waiting = False
-        obs, rews, dones, infos = zip(*results)
-        return np.stack(obs), np.stack(rews), np.stack(dones), infos
+        obs, rews, terms, truncs, infos = zip(*results)
+        return np.stack(obs), np.stack(rews), np.stack(terms), np.stack(truncs), infos
 
     def reset(self):
         for remote in self.remotes:
@@ -353,19 +353,19 @@ class DummyVecEnv(ShareVecEnv):
         #results = [env.step(a) for (a, env) in zip(self.data, self.envs)]
         #obs, rews, dones, infos, available_actions = map(np.array, zip(*results))
 
-        obs, rews, dones, infos = self.envs[0].step(self.data)
+        obs, rews, terms, truncs, infos = self.envs[0].step(self.data)
         
-        for (i, done) in enumerate(dones):
+        for (i, term) in enumerate(terms):
            
-            if 'bool' in done.__class__.__name__:
-                if done:
+            if 'bool' in term.__class__.__name__:
+                if term:
                     obs = self.envs[0].reset()
             else:
-                if np.all(done):
+                if np.all(term):
                     obs[i] = self.envs[i].reset()
 
         self.data = None
-        return obs, rews, dones, infos
+        return obs, rews, terms, truncs, infos
 
     def reset(self):
         obs = [env.reset() for env in self.envs]
