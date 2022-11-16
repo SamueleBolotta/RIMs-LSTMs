@@ -233,17 +233,7 @@ class MPERunner(Runner):
             values.append(_t2n(value))
             action = _t2n(action)
             # rearrange action
-            if self.envs.action_space(agent_id_pet).__class__.__name__ == 'MultiDiscrete':
-                for i in range(self.envs.action_space(agent_id_pet).shape):
-                    uc_action_env = np.eye(self.envs.action_space(agent_id_pet).high[i]+1)[action[:, i]]
-                    if i == 0:
-                        action_env = uc_action_env
-                    else:
-                        action_env = np.concatenate((action_env, uc_action_env), axis=1)
-            elif self.envs.action_space(agent_id_pet).__class__.__name__ == 'Discrete':
-                action_env = np.squeeze(np.eye(self.envs.action_space(agent_id_pet).n)[action], 1)
-            else:
-                raise NotImplementedError
+            action_env = np.squeeze(np.eye(self.envs.action_space(agent_id_pet).n)[action], 1)
 
             actions.append(action)
             temp_actions_env.append(action_env)
