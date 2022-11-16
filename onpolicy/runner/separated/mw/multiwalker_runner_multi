@@ -23,7 +23,11 @@ def generator_possible_agents(envs, num_agents):
 
 def unbatchify(x, num_ag):
     """Converts np array to PZ style arguments."""
-    x = {a: x[i][0] for i, a in enumerate(num_ag)}
+    
+    print("x1", x)
+    x = {a: x[i][:] for i, a in enumerate(num_ag)}
+    print("x2", x)
+
     return x
 
 def batchify_obs(obs, device):
@@ -68,16 +72,19 @@ def before_pz(actions, envs, num_agents):
     actions_step = {"{}_{}".format(basnm, i):int(actions[0][i]) for i in range(0, num_agents)}
     return actions_step
 
-def after_pz(obs, rewards, dones, infos):
+def after_pz(obs, rewards, terms, truncs, infos):
        
     obs = np.array(list(obs.values()))
     rewards = np.array(list(rewards.values()))
-    dones = np.array(list(dones.values()))
+    terms = np.array(list(terms.values()))
+    truncs = np.array(list(truncs.values()))
     infos = np.array(list(infos.values()))
     obs = obs[np.newaxis, :, :]
     rewards = rewards[np.newaxis, :, np.newaxis]
-    dones = dones[np.newaxis, :]
-    return obs, rewards, dones, infos
+    terms = terms[np.newaxis, :]
+    truncs = truncs[np.newaxis, :]
+
+    return obs, rewards, terms, truncs, infos
 
 def _t2n(x):
     return x.detach().cpu().numpy()
@@ -109,18 +116,19 @@ class SISLRunner(Runner):
                 self.warmup(obs_n_list)
                                 
                 #Sample actions
-                values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env = self.collect(step)
+                values, actions, action_log_probs, rnn_states, rnn_states_critic = self.collect(step)
                 
                 act_list = []
                 for i in range(self.n_rollout_threads):
                     actions_pz = unbatchify(actions[i], possible_agents)
                     act_list.append(actions_pz)
                 
-                next_obs, rewards, dones, infos = self.envs.step(act_list)
+                print("act list", act_list)
+                next_obs, rewards, terms, truncs, infos = self.envs.step(act_list)
 
-                do, rew, ob_l, infs = self.after_step(next_obs, rewards, dones, infos)
+                te, tr, rew, ob_l, infs = self.after_step(next_obs, rewards, terms, truncs, infos)
 
-                data = ob_l, rew, do, infs, values, actions, action_log_probs, rnn_states, rnn_states_critic 
+                data = ob_l, rew, te, tr, infs, values, actions, action_log_probs, rnn_states, rnn_states_critic 
                
                 # insert data into buffer
                 self.insert(data)
@@ -195,27 +203,31 @@ class SISLRunner(Runner):
                 temp = np.array(list(obs[agent_id, :]))
                 self.buffer[agent_id].obs[0] = np.array(list(obs[agent_id, :])).copy()
 
-    def after_step(self, next_obs, rewards, dones, infos):
+    def after_step(self, next_obs, rewards, terms, truncs, infos):
         
         obs_list = []
         rew_list = []
-        dones_list = []
+        terms_list = []
+        truncs_list = []
+
         infos_list = []
                 
         for i in range(self.n_rollout_threads):
-            obs__, rewards__, dones__, infos__ = after_pz(next_obs[i], rewards[i], dones[i], infos[i])
+            obs__, rewards__, terms__, truncs__, infos__ = after_pz(next_obs[i], rewards[i], terms[i], truncs[i], infos[i])
             obs_list.append(obs__[0])
             rew_list.append(rewards__[0])
-            dones_list.append(dones__.tolist()[0])
+            terms_list.append(terms__.tolist()[0])
+            truncs_list.append(truncs__.tolist()[0])
             infos_list.append(infos__.tolist())
                     
-        dones_list = np.array(dones_list)
+        terms_list = np.array(terms_list)
+        truncs_list = np.array(truncs_list)
         rew_list = np.array(rew_list)
         obs_list = np.array(obs_list)
         infos_list = tuple(infos_list)
             
             
-        return dones_list, rew_list, obs_list, infos_list
+        return terms_list, truncs_list, rew_list, obs_list, infos_list
     
     @torch.no_grad()
     def collect(self, step):
@@ -238,48 +250,27 @@ class SISLRunner(Runner):
             # [agents, envs, dim]
             values.append(_t2n(value))
             action = _t2n(action)
-            # rearrange action
-            if self.envs.action_space(agent_id_pet).__class__.__name__ == 'MultiDiscrete':
-                for i in range(self.envs.action_space(agent_id_pet).shape):
-                    uc_action_env = np.eye(self.envs.action_space(agent_id_pet).high[i]+1)[action[:, i]]
-                    if i == 0:
-                        action_env = uc_action_env
-                    else:
-                        action_env = np.concatenate((action_env, uc_action_env), axis=1)
-            elif self.envs.action_space(agent_id_pet).__class__.__name__ == 'Discrete':
-                action_env = np.squeeze(np.eye(self.envs.action_space(agent_id_pet).n)[action], 1)
-            else:
-                raise NotImplementedError
 
             actions.append(action)
-            temp_actions_env.append(action_env)
             action_log_probs.append(_t2n(action_log_prob))
             rnn_states.append(_t2n(rnn_state))
             rnn_states_critic.append( _t2n(rnn_state_critic))
-
-        # [envs, agents, dim]
-        actions_env = []
-        for i in range(self.n_rollout_threads):
-            one_hot_action_env = []
-            for temp_action_env in temp_actions_env:
-                one_hot_action_env.append(temp_action_env[i])
-            actions_env.append(one_hot_action_env)
 
         values = np.array(values).transpose(1, 0, 2)
         actions = np.array(actions).transpose(1, 0, 2)
         action_log_probs = np.array(action_log_probs).transpose(1, 0, 2)
         rnn_states = np.array(rnn_states).transpose(1, 0, 2, 3)
         rnn_states_critic = np.array(rnn_states_critic).transpose(1, 0, 2, 3)
-
-        return values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env
+        
+        return values, actions, action_log_probs, rnn_states, rnn_states_critic
 
     def insert(self, data):
-        obs, rewards, dones, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic = data
+        obs, rewards, terms, truncs, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic = data
 
-        rnn_states[dones == True] = np.zeros(((dones == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
-        rnn_states_critic[dones == True] = np.zeros(((dones == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
+        rnn_states[terms == True] = np.zeros(((terms == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
+        rnn_states_critic[terms == True] = np.zeros(((terms == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
         masks = np.ones((self.n_rollout_threads, self.num_agents, 1), dtype=np.float32)
-        masks[dones == True] = np.zeros(((dones == True).sum(), 1), dtype=np.float32)
+        masks[terms == True] = np.zeros(((terms == True).sum(), 1), dtype=np.float32)
 
         share_obs = []
         for o in obs:
