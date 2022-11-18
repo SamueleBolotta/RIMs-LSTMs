@@ -72,8 +72,6 @@ class MPERunner(Runner):
             total_episodic_return = 0
                 
             for step in range(0, self.episode_length):
-
-                print("step: ", step, "episode: ", episode)
                     
                 # rollover the observation
                 obs = batchify_obs(next_obs, device, self.envs)
