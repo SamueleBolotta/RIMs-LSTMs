@@ -23,11 +23,7 @@ def generator_possible_agents(envs, num_agents):
 
 def unbatchify(x, num_ag):
     """Converts np array to PZ style arguments."""
-    
-    print("x1", x)
-    x = {a: x[i][:] for i, a in enumerate(num_ag)}
-    print("x2", x)
-
+        x = {a: x[i][:] for i, a in enumerate(num_ag)}
     return x
 
 def batchify_obs(obs, device):
@@ -123,7 +119,6 @@ class SISLRunner(Runner):
                     actions_pz = unbatchify(actions[i], possible_agents)
                     act_list.append(actions_pz)
                 
-                print("act list", act_list)
                 next_obs, rewards, terms, truncs, infos = self.envs.step(act_list)
 
                 te, tr, rew, ob_l, infs = self.after_step(next_obs, rewards, terms, truncs, infos)
