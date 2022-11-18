@@ -6,7 +6,6 @@ from tensorboardX import SummaryWriter
 from onpolicy.utils.shared_buffer import SharedReplayBuffer
 
 def topetzoo(agent_id, envs, num_agents):
-    print("envs", envs)
     if envs == 'butterfly-pistonball': 
         basn = 'piston'
     elif envs == 'simple_spread_v2':
@@ -76,9 +75,6 @@ class Runner(object):
         from onpolicy.algorithms.r_mappo.algorithm.rMAPPOPolicy import R_MAPPOPolicy as Policy
 
         share_observation_space = self.envs.state_space if self.use_centralized_V else self.envs.observation_space
-        
-        print("self.envs.observation_space", self.envs.observation_space(self.envs.possible_agents[0]).shape)
-        print("self.envs.action_space", self.envs.action_space(self.envs.possible_agents[0]).n)
 
         # policy network
         self.policy = Policy(self.all_args,
