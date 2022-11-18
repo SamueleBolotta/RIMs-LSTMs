@@ -62,16 +62,19 @@ def before_pz(actions, envs, num_agents):
     actions_step = {"{}_{}".format(basnm, i):int(actions[0][i]) for i in range(0, num_agents)}
     return actions_step
 
-def after_pz(obs, rewards, dones, infos):
+def after_pz(obs, rewards, terms, truncs, infos):
        
     obs = np.array(list(obs.values()))
     rewards = np.array(list(rewards.values()))
-    dones = np.array(list(dones.values()))
+    terms = np.array(list(terms.values()))
+    truncs = np.array(list(truncs.values()))
     infos = np.array(list(infos.values()))
     obs = obs[np.newaxis, :, :]
     rewards = rewards[np.newaxis, :, np.newaxis]
-    dones = dones[np.newaxis, :]
-    return obs, rewards, dones, infos
+    terms = terms[np.newaxis, :]
+    truncs = truncs[np.newaxis, :]
+
+    return obs, rewards, terms, truncs, infos
 
 def _t2n(x):
     return x.detach().cpu().numpy()
@@ -110,11 +113,11 @@ class MPERunner(Runner):
                     actions_pz = unbatchify(actions[i], possible_agents)
                     act_list.append(actions_pz)
                 
-                next_obs, rewards, dones, infos = self.envs.step(act_list)
+                next_obs, rewards, terms, truncs, infos = self.envs.step(act_list)
 
-                do, rew, ob_l, infs = self.after_step(next_obs, rewards, dones, infos)
+                te, tr, rew, ob_l, infs = self.after_step(next_obs, rewards, terms, truncs, infos)
 
-                data = ob_l, rew, do, infs, values, actions, action_log_probs, rnn_states, rnn_states_critic 
+                data = ob_l, rew, te, tr, infs, values, actions, action_log_probs, rnn_states, rnn_states_critic 
                
                 # insert data into buffer
                 self.insert(data)
@@ -189,27 +192,30 @@ class MPERunner(Runner):
                 temp = np.array(list(obs[agent_id, :]))
                 self.buffer[agent_id].obs[0] = np.array(list(obs[agent_id, :])).copy()
 
-    def after_step(self, next_obs, rewards, dones, infos):
+    def after_step(self, next_obs, rewards, terms, truncs, infos):
         
         obs_list = []
         rew_list = []
-        dones_list = []
+        terms_list = []
+        truncs_list = []
         infos_list = []
                 
         for i in range(self.n_rollout_threads):
-            obs__, rewards__, dones__, infos__ = after_pz(next_obs[i], rewards[i], dones[i], infos[i])
+            obs__, rewards__, terms__, truncs__, infos__ = after_pz(next_obs[i], rewards[i], terms[i], truncs[i], infos[i])
             obs_list.append(obs__[0])
             rew_list.append(rewards__[0])
-            dones_list.append(dones__.tolist()[0])
+            terms_list.append(terms__.tolist()[0])
+            truncs_list.append(truncs__.tolist()[0])
             infos_list.append(infos__.tolist())
                     
-        dones_list = np.array(dones_list)
+        terms_list = np.array(terms_list)
+        truncs_list = np.array(truncs_list)
         rew_list = np.array(rew_list)
         obs_list = np.array(obs_list)
         infos_list = tuple(infos_list)
             
             
-        return dones_list, rew_list, obs_list, infos_list
+        return terms_list, truncs_list, rew_list, obs_list, infos_list
     
     @torch.no_grad()
     def collect(self, step):
@@ -258,12 +264,12 @@ class MPERunner(Runner):
         return values, actions, action_log_probs, rnn_states, rnn_states_critic, actions_env
 
     def insert(self, data):
-        obs, rewards, dones, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic = data
+        obs, rewards, terms, truncs, infos, values, actions, action_log_probs, rnn_states, rnn_states_critic = data
 
-        rnn_states[dones == True] = np.zeros(((dones == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
-        rnn_states_critic[dones == True] = np.zeros(((dones == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
+        rnn_states[terms == True] = np.zeros(((terms == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
+        rnn_states_critic[terms == True] = np.zeros(((terms == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
         masks = np.ones((self.n_rollout_threads, self.num_agents, 1), dtype=np.float32)
-        masks[dones == True] = np.zeros(((dones == True).sum(), 1), dtype=np.float32)
+        masks[terms == True] = np.zeros(((terms == True).sum(), 1), dtype=np.float32)
 
         share_obs = []
         for o in obs:
@@ -328,7 +334,7 @@ class MPERunner(Runner):
                 eval_actions_env.append(eval_one_hot_action_env)
 
             # Obser reward and next obs
-            eval_obs, eval_rewards, eval_terms, eval_infos = self.eval_envs.step(eval_actions_env)
+            eval_obs, eval_rewards, eval_terms, eval_truncs, eval_infos = self.eval_envs.step(eval_actions_env)
             eval_episode_rewards.append(eval_rewards)
 
             eval_rnn_states[eval_terms == True] = np.zeros(((eval_terms == True).sum(), self.recurrent_N, self.hidden_size), dtype=np.float32)
