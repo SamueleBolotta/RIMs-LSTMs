@@ -257,10 +257,10 @@ def worker(remote, parent_remote, env_fn_wrapper):
             remote.send((ob))
         elif cmd == 'render':
             if data == "rgb_array":
-                fr = env.render(mode=data)
+                fr = env.render()
                 remote.send(fr)
             elif data == "human":
-                env.render(mode=data)
+                env.render()
         elif cmd == 'reset_task':
             ob = env.reset_task()
             remote.send(ob)
