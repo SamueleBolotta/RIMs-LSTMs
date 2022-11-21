@@ -18,11 +18,11 @@ def make_train_env(all_args):
     def get_env_fn(rank):
         def init_env():
             if all_args.env_name == "SISL-multiwalker":
-                envs = multiwalker_v9.parallel_env(n_walkers=3, position_noise=1e-3, angle_noise=1e-3, forward_reward=1.0, terminate_reward=-100.0, fall_reward=-10.0, shared_reward=True, terminate_on_fall=True, remove_on_fall=True, max_cycles=int(all_args.num_env_steps), render_mode="human"))
+                envs = multiwalker_v9.parallel_env(n_walkers=3, position_noise=1e-3, angle_noise=1e-3, forward_reward=1.0, terminate_reward=-100.0, fall_reward=-10.0, shared_reward=True, terminate_on_fall=True, remove_on_fall=True, max_cycles=int(all_args.num_env_steps), render_mode="human")
             return envs
         return init_env
     if all_args.n_rollout_threads == 1:
-        envs = multiwalker_v9.parallel_env(n_walkers=3, position_noise=1e-3, angle_noise=1e-3, forward_reward=1.0, terminate_reward=-100.0, fall_reward=-10.0, shared_reward=True, terminate_on_fall=True, remove_on_fall=True, max_cycles=int(all_args.num_env_steps), render_mode="human"))
+        envs = multiwalker_v9.parallel_env(n_walkers=3, position_noise=1e-3, angle_noise=1e-3, forward_reward=1.0, terminate_reward=-100.0, fall_reward=-10.0, shared_reward=True, terminate_on_fall=True, remove_on_fall=True, max_cycles=int(all_args.num_env_steps), render_mode="human")
         return envs
     else:
         return SubprocVecEnv([get_env_fn(i) for i in range(all_args.n_rollout_threads)])
@@ -31,11 +31,11 @@ def make_eval_env(all_args):
     def get_env_fn(rank):
         def init_env():
             if all_args.env_name == "SISL-multiwalker":
-                envs = multiwalker_v9.parallel_env(n_walkers=3, position_noise=1e-3, angle_noise=1e-3, forward_reward=1.0, terminate_reward=-100.0, fall_reward=-10.0, shared_reward=True, terminate_on_fall=True, remove_on_fall=True, max_cycles=int(all_args.num_env_steps), render_mode="human"))
+                envs = multiwalker_v9.parallel_env(n_walkers=3, position_noise=1e-3, angle_noise=1e-3, forward_reward=1.0, terminate_reward=-100.0, fall_reward=-10.0, shared_reward=True, terminate_on_fall=True, remove_on_fall=True, max_cycles=int(all_args.num_env_steps), render_mode="human")
             return envs
         return init_env
     if all_args.n_rollout_threads == 1:
-        envs = multiwalker_v9.parallel_env(n_walkers=3, position_noise=1e-3, angle_noise=1e-3, forward_reward=1.0, terminate_reward=-100.0, fall_reward=-10.0, shared_reward=True, terminate_on_fall=True, remove_on_fall=True, max_cycles=int(all_args.num_env_steps), render_mode="human"))
+        envs = multiwalker_v9.parallel_env(n_walkers=3, position_noise=1e-3, angle_noise=1e-3, forward_reward=1.0, terminate_reward=-100.0, fall_reward=-10.0, shared_reward=True, terminate_on_fall=True, remove_on_fall=True, max_cycles=int(all_args.num_env_steps), render_mode="human")
         return envs
     else:
         return SubprocVecEnv([get_env_fn(i) for i in range(all_args.n_eval_rollout_threads)])
