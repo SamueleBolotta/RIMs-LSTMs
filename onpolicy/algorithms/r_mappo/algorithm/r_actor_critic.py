@@ -63,7 +63,6 @@ class R_Actor(nn.Module):
                 self.rnn = RIMCell(torch.device('cuda' if torch.cuda.is_available() else 'cpu'), self.hidden_size, self.hidden_size // self._num_units, self._num_units, 1, 'GRU', input_value_size = 64, comm_value_size = self.hidden_size // self._num_units)
             elif self._use_lstm_policy:
                 self.rnn = RNNLayer(self.hidden_size, self.hidden_size, self._recurrent_N, self._use_orthogonal)
-
         self.act = ACTLayer(action_space, self.hidden_size, self._use_orthogonal, self._gain)
 
         self.to(device)
