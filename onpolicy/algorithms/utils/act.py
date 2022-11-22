@@ -14,6 +14,7 @@ class ACTLayer(nn.Module):
         super(ACTLayer, self).__init__()
         self.mixed_action = False
         self.multi_discrete = False
+        self.action_space = action_space
         
         print("action_space.__class__.__name__", action_space.__class__.__name__)
         
@@ -23,6 +24,7 @@ class ACTLayer(nn.Module):
         elif action_space.__class__.__name__ == "Box":
             action_dim = action_space.shape[0]
             self.action_out = DiagGaussian(inputs_dim, action_dim, use_orthogonal, gain)
+            self.m = nn.Tanh()
         elif action_space.__class__.__name__ == "MultiBinary":
             action_dim = action_space.shape[0]
             self.action_out = Bernoulli(inputs_dim, action_dim, use_orthogonal, gain)
@@ -80,8 +82,10 @@ class ACTLayer(nn.Module):
         else:
             action_logits = self.action_out(x)
             actions = action_logits.mode() if deterministic else action_logits.sample() 
+            actions = self.m(actions)
             action_log_probs = action_logits.log_probs(actions)
-        
+            
+
         return actions, action_log_probs
 
     def get_probs(self, x, available_actions=None):
@@ -101,7 +105,9 @@ class ACTLayer(nn.Module):
                 action_probs.append(action_prob)
             action_probs = torch.cat(action_probs, -1)
         else:
-            action_logits = self.action_out(x, available_actions)
+            action_logits = self.action_out(x)
+            print("action logits in get probs", action_logits)
+
             action_probs = action_logits.probs
         
         return action_probs
@@ -155,6 +161,7 @@ class ACTLayer(nn.Module):
         
         else:
             action_logits = self.action_out(x)
+            print("action logits in evaluate", action_logits)
             action_log_probs = action_logits.log_probs(action)
             if active_masks is not None:
                 dist_entropy = (action_logits.entropy()*active_masks.squeeze(-1)).sum()/active_masks.sum()
