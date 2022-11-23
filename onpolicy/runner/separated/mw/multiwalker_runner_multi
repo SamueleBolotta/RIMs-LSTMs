@@ -95,7 +95,7 @@ class SISLRunner(Runner):
 
         episodes = int(self.num_env_steps) // self.episode_length // self.n_rollout_threads
         possible_agents = generator_possible_agents(self.env_name, self.num_agents)
-        
+
         for episode in range(episodes):
             if self.use_linear_lr_decay:
                 for agent_id in range(self.num_agents):
@@ -105,6 +105,7 @@ class SISLRunner(Runner):
             start = time.time()
 
             for step in range(self.episode_length):
+                print(next_obs)
                 #Convert PZ style observations to batch of np arrays, for each rollout thread
                 obs_n_list = self.prep(next_obs, device)
                 
@@ -119,9 +120,9 @@ class SISLRunner(Runner):
                     actions_pz = unbatchify(actions[i], possible_agents)
                     act_list.append(actions_pz)
                 
-                next_obs, rewards, terms, truncs, infos = self.envs.step(act_list)
+                observation_after_step, rewards, terms, truncs, infos = self.envs.step(act_list)
                 
-                te, tr, rew, ob_l, infs = self.after_step(next_obs, rewards, terms, truncs, infos)
+                te, tr, rew, ob_l, infs = self.after_step(observation_after_step, rewards, terms, truncs, infos)
 
                 data = ob_l, rew, te, tr, infs, values, actions, action_log_probs, rnn_states, rnn_states_critic 
                
