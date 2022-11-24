@@ -247,9 +247,8 @@ def worker(remote, parent_remote, env_fn_wrapper):
             if 'bool' in terms.__class__.__name__:
                 if terms:
                     ob = env.reset()
-            else:
-                if np.all(terms):
-                    ob = env.reset()
+                    print("env reset because terms")
+
 
             remote.send((ob, reward, terms, truncs, info))
         elif cmd == 'reset':
