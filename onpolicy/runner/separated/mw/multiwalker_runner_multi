@@ -75,6 +75,7 @@ def after_pz(obs, rewards, terms, truncs, infos):
     terms = np.array(list(terms.values()))
     truncs = np.array(list(truncs.values()))
     infos = np.array(list(infos.values()))
+    print("shape of obs", np.shape(obs))
     obs = obs[np.newaxis, :, :]
     rewards = rewards[np.newaxis, :, np.newaxis]
     terms = terms[np.newaxis, :]
@@ -105,10 +106,11 @@ class SISLRunner(Runner):
             start = time.time()
 
             for step in range(self.episode_length):
-                print(next_obs)
                 #Convert PZ style observations to batch of np arrays, for each rollout thread
                 obs_n_list = self.prep(next_obs, device)
-                
+                print("episode: ", episode)
+                print("step: ", step)
+
                 #Warmup
                 self.warmup(obs_n_list)
                                 
