@@ -130,6 +130,10 @@ class SISLRunner(Runner):
                
                 # insert data into buffer
                 self.insert(data)
+                
+                if any([terms[a] for a in terms]) or any([truncs[a] for a in truncs]): 
+                    print("break")
+                    break
 
             # compute return and update network
             self.compute()
