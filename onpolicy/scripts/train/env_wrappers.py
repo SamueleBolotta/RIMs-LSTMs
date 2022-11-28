@@ -244,10 +244,13 @@ def worker(remote, parent_remote, env_fn_wrapper):
         cmd, data = remote.recv()
         if cmd == 'step':
             ob, reward, terms, truncs, info = env.step(data)
+            print("step in env wrapper")
             if 'bool' in terms.__class__.__name__:
-                if terms:
+                print("'bool' in terms.__class__.__name__:")
+                
+                if terms or truncs:
+                    print("terms or truncs")
                     ob = env.reset()
-                    print("env reset because terms")
 
 
             remote.send((ob, reward, terms, truncs, info))
