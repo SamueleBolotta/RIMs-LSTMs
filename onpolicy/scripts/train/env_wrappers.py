@@ -246,7 +246,6 @@ def worker(remote, parent_remote, env_fn_wrapper):
             ob, reward, terms, truncs, info = env.step(data)
             if any([terms[a] for a in terms]) or any([truncs[a] for a in truncs]):  
                 ob = env.reset()
-
             remote.send((ob, reward, terms, truncs, info))
         elif cmd == 'reset':
             ob = env.reset()
