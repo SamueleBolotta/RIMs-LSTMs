@@ -102,39 +102,52 @@ class SISLRunner(Runner):
                 for agent_id in range(self.num_agents):
                     self.trainer[agent_id].policy.lr_decay(episode, episodes)
                     
-            next_obs = self.envs.reset()   
+            first_obs = self.envs.reset()   
             start = time.time()
-
+            
+            steps_reset = [0] * self.n_rollout_threads
+            
             for step in range(self.episode_length):
                 #Convert PZ style observations to batch of np arrays, for each rollout thread
-                obs_n_list = self.prep(next_obs, device)
+                obs = self.prep(first_obs, device)
+                
                 print("episode: ", episode)
                 print("step: ", step)
 
                 #Warmup
-                self.warmup(obs_n_list)
+                self.warmup(obs)
                                 
                 #Sample actions
                 values, actions, action_log_probs, rnn_states, rnn_states_critic = self.collect(step)
                 
-                act_list = []
+                actions_list = []
                 for i in range(self.n_rollout_threads):
-                    actions_pz = unbatchify(actions[i], possible_agents)
-                    act_list.append(actions_pz)
+                    actions_pettingzoo = unbatchify(actions[i], possible_agents)
+                    actions_list.append(actions_pettingzoo)
                 
-                observation_after_step, rewards, terms, truncs, infos = self.envs.step(act_list)
+                observation, rewards, terms, truncs, infos = self.envs.step(actions_list)
                 
-                te, tr, rew, ob_l, infs = self.after_step(observation_after_step, rewards, terms, truncs, infos)
+                terms_step, truncs_step, rewards_step, obs_step, infs_step = self.after_step(observation, rewards, terms, truncs, infos)
 
-                data = ob_l, rew, te, tr, infs, values, actions, action_log_probs, rnn_states, rnn_states_critic 
+                data = obs_step, rewards_step, terms_step, truncs_step, infs_step, values, actions, action_log_probs, rnn_states, rnn_states_critic 
                
+                print("terms", terms_step)
+                print("terms", np.shape(terms_step))
+                
+                for i in range(self.n_rollout_threads):
+                    if terms_step[i].all():
+                        if steps_reset[i] == 0:
+                            steps_reset[i] = step
+                
                 # insert data into buffer
                 self.insert(data)
-                
-                if any([terms[a] for a in terms]) or any([truncs[a] for a in truncs]): 
-                    print("break")
-                    break
+            
+            print("steps_reset", steps_reset)
+            
+            for agent_id in range(self.num_agents):
 
+                print("rewards after after", np.shape(self.buffer[agent_id].rewards))
+                
             # compute return and update network
             self.compute()
             train_infos = self.train()
