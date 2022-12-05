@@ -10,6 +10,16 @@ def _flatten(T, N, x):
 def _cast(x):
     return x.transpose(1,0,2).reshape(-1, *x.shape[2:])
 
+def handle_zero_steps(A, reset_list):
+    for i in range(A.shape[1]):
+        for j in range(A.shape[0]):
+            if j >= reset_list[i]:
+                if len(A) == 3:
+                    A[j, i, :] = 0
+                if len(A) == 4:
+                    A[j, i, :, :] = 0
+    return A
+
 class SeparatedReplayBuffer(object):
     def __init__(self, args, obs_space, share_obs_space, act_space):
         self.episode_length = args.episode_length
@@ -80,8 +90,30 @@ class SeparatedReplayBuffer(object):
             self.active_masks[self.step + 1] = active_masks.copy()
         if available_actions is not None:
             self.available_actions[self.step + 1] = available_actions.copy()
-
+        
         self.step = (self.step + 1) % self.episode_length
+        
+    def modify_buffer(self, reset_list):
+        
+        self.share_obs = handle_zero_steps(self.share_obs, reset_list)
+        self.obs = handle_zero_steps(self.obs, reset_list)
+        self.rnn_states = handle_zero_steps(self.rnn_states, reset_list)
+        self.rnn_states_critic = handle_zero_steps(self.rnn_states_critic, reset_list)
+        self.actions = handle_zero_steps(self.actions, reset_list)
+        self.action_log_probs = handle_zero_steps(self.action_log_probs, reset_list)
+        self.value_preds = handle_zero_steps(self.value_preds, reset_list)
+        print("rew", self.rewards)
+        self.rewards = handle_zero_steps(self.rewards, reset_list)
+        print("rew", self.rewards)
+
+        self.masks = handle_zero_steps(self.masks, reset_list)
+        if self.bad_masks is not None:
+            self.bad_masks = handle_zero_steps(self.bad_masks, reset_list)
+        if self.active_masks is not None:
+            self.active_masks = handle_zero_steps(self.active_masks, reset_list)
+        if self.available_actions is not None:
+            self.available_actions = handle_zero_steps(self.available_actions, reset_list)
+
 
     def chooseinsert(self, share_obs, obs, rnn_states, rnn_states_critic, actions, action_log_probs,
                      value_preds, rewards, masks, bad_masks=None, active_masks=None, available_actions=None):
