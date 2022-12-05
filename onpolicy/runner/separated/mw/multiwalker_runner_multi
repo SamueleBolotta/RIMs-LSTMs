@@ -53,10 +53,7 @@ class SISLRunner(Runner):
                 terms_step, truncs_step, rewards_step, obs_step, infs_step = self.after_step(observation, rewards, terms, truncs, infos)
 
                 data = obs_step, rewards_step, terms_step, truncs_step, infs_step, values, actions, action_log_probs, rnn_states, rnn_states_critic 
-               
-                print("terms", terms_step)
-                print("terms", np.shape(terms_step))
-                
+
                 for i in range(self.n_rollout_threads):
                     if terms_step[i].all():
                         if steps_reset[i] == 0:
@@ -64,11 +61,18 @@ class SISLRunner(Runner):
                 
                 # insert data into buffer
                 self.insert(data)
-            
-            print("steps_reset", steps_reset)
-            
-            for agent_id in range(self.num_agents):
+            print("steps reset", steps_reset)
 
+            for i, num in enumerate(steps_reset):
+                if num == 0:
+                    steps_reset[i] = self.episode_length
+                    
+            print("steps reset", steps_reset)
+            print("rewards", self.buffer[0].rewards)
+            self.modify_buffer(steps_reset)
+            print("rewards", self.buffer[0].rewards)
+
+            for agent_id in range(self.num_agents):
                 print("rewards after after", np.shape(self.buffer[agent_id].rewards))
                 
             # compute return and update network
@@ -228,6 +232,11 @@ class SISLRunner(Runner):
                                         values[:, agent_id],
                                         rewards[:, agent_id],
                                         masks[:, agent_id])
+                                        
+    def modify_buffer(self, reset_list):
+    
+        for agent_id in range(self.num_agents):
+            self.buffer[agent_id].modify_buffer(reset_list)    
 
     @torch.no_grad()
     def eval(self, total_num_steps):
