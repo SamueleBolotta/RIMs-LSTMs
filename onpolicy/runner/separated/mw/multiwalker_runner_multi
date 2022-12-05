@@ -5,86 +5,9 @@ import numpy as np
 from itertools import chain
 import torch
 
-from onpolicy.utils.util import update_linear_schedule
+from onpolicy.utils.util import update_linear_schedule, generator_possible_agents, unbatchify, batchify_obs, topetzoo, before_pz, after_pz, _t2n
 from onpolicy.runner.separated.mw.base_runner_multi import Runner
 import imageio
-
-def generator_possible_agents(envs, num_agents):
-    if envs == 'BUTTERFLY-pistonball': 
-        basnm = 'piston'
-    elif envs == 'BUTTERFLY-pong':
-        basnm = "paddle"
-    elif envs == 'MPE-simple.spread':
-        basnm = "agent" 
-    elif envs == 'SISL-multiwalker':
-        basnm = "walker"
-    result = ["{}_{}".format(basnm, i) for i in range(0, num_agents)]
-    return result
-
-def unbatchify(x, num_ag):
-    """Converts np array to PZ style arguments."""
-    x = {a: x[i][:] for i, a in enumerate(num_ag)}
-    return x
-
-def batchify_obs(obs, device):
-    """Converts PZ style observations to batch of torch arrays."""
-    # convert to list of np arrays
-        
-    obs = np.stack([obs[a] for a in obs], axis=0)
-    obs = obs[np.newaxis, :, :]
-    # transpose to be (batch, channel, height, width)
-    if len(obs.shape) == 4:
-        obs_n = obs.transpose(0, -1, 1, 2)
-    else:
-        obs_n = obs
-   
-    # convert to torch
-    obs = torch.tensor(obs_n).to(device)
-
-    return obs, obs_n
-
-def topetzoo(agent_id, envs, num_agents):
-    if envs == 'BUTTERFLY-pistonball': 
-        basnm = 'piston'
-    elif envs == 'BUTTERFLY-pong':
-        basnm = "paddle"
-    elif envs == 'MPE-simple.spread':
-        basnm = "agent" 
-    elif envs == 'SISL-multiwalker':
-        basnm = "walker"   
-    result = ["{}_{}".format(basnm, i) for i in range(0, num_agents)]
-    return result[agent_id]
-    
-        
-def before_pz(actions, envs, num_agents):
-    if envs == 'BUTTERFLY-pistonball': 
-        basnm = 'piston'
-    elif envs == 'BUTTERFLY-pong':
-        basnm = "paddle"
-    elif envs == 'MPE-simple.spread':
-        basnm = "agent"
-    elif envs == 'SISL-multiwalker':
-        basnm = "walker"
-    actions_step = {"{}_{}".format(basnm, i):int(actions[0][i]) for i in range(0, num_agents)}
-    return actions_step
-
-def after_pz(obs, rewards, terms, truncs, infos):
-       
-    obs = np.array(list(obs.values()))
-    rewards = np.array(list(rewards.values()))
-    terms = np.array(list(terms.values()))
-    truncs = np.array(list(truncs.values()))
-    infos = np.array(list(infos.values()))
-    print("shape of obs", np.shape(obs))
-    obs = obs[np.newaxis, :, :]
-    rewards = rewards[np.newaxis, :, np.newaxis]
-    terms = terms[np.newaxis, :]
-    truncs = truncs[np.newaxis, :]
-
-    return obs, rewards, terms, truncs, infos
-
-def _t2n(x):
-    return x.detach().cpu().numpy()
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
                       
