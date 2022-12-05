@@ -68,7 +68,6 @@ def after_pz(obs, rewards, terms, truncs, infos):
     terms = np.array(list(terms.values()))
     truncs = np.array(list(truncs.values()))
     infos = np.array(list(infos.values()))
-    print("shape of obs", np.shape(obs))
     obs = obs[np.newaxis, :, :]
     rewards = rewards[np.newaxis, :, np.newaxis]
     terms = terms[np.newaxis, :]
