@@ -68,12 +68,7 @@ class SISLRunner(Runner):
                     steps_reset[i] = self.episode_length
                     
             print("steps reset", steps_reset)
-            print("rewards", self.buffer[0].rewards)
             self.modify_buffer(steps_reset)
-            print("rewards", self.buffer[0].rewards)
-
-            for agent_id in range(self.num_agents):
-                print("rewards after after", np.shape(self.buffer[agent_id].rewards))
                 
             # compute return and update network
             self.compute()
@@ -167,7 +162,6 @@ class SISLRunner(Runner):
         rew_list = np.array(rew_list)
         obs_list = np.array(obs_list)
         infos_list = tuple(infos_list)
-            
             
         return terms_list, truncs_list, rew_list, obs_list, infos_list
     
