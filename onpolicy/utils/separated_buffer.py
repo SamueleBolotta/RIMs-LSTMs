@@ -11,12 +11,13 @@ def _cast(x):
     return x.transpose(1,0,2).reshape(-1, *x.shape[2:])
 
 def handle_zero_steps(A, reset_list):
+    A = A.copy()
     for i in range(A.shape[1]):
         for j in range(A.shape[0]):
             if j >= reset_list[i]:
-                if len(A) == 3:
+                if A.ndim == 3:
                     A[j, i, :] = 0
-                if len(A) == 4:
+                if A.ndim == 4:
                     A[j, i, :, :] = 0
     return A
 
@@ -102,9 +103,7 @@ class SeparatedReplayBuffer(object):
         self.actions = handle_zero_steps(self.actions, reset_list)
         self.action_log_probs = handle_zero_steps(self.action_log_probs, reset_list)
         self.value_preds = handle_zero_steps(self.value_preds, reset_list)
-        print("rew", self.rewards)
         self.rewards = handle_zero_steps(self.rewards, reset_list)
-        print("rew", self.rewards)
 
         self.masks = handle_zero_steps(self.masks, reset_list)
         if self.bad_masks is not None:
