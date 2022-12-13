@@ -4,6 +4,17 @@ from collections import defaultdict
 
 from onpolicy.utils.util import check, get_shape_from_obs_space, get_shape_from_act_space
 
+
+def delete_zeros(reset_list, A):
+    C = [A[:, i, :].tolist() for i in range(A.shape[1])]
+
+    # Delete rows in each column
+    for i, array in enumerate(C):
+        C[i] = array[:reset_list[i]]
+
+    return C
+
+
 def _flatten(T, N, x):
     return x.reshape(T * N, *x.shape[2:])
 
@@ -73,6 +84,8 @@ class SeparatedReplayBuffer(object):
         self.active_masks = np.ones_like(self.masks)
 
         self.step = 0
+        
+        self.reset_list = []
 
     def insert(self, share_obs, obs, rnn_states, rnn_states_critic, actions, action_log_probs,
                value_preds, rewards, masks, bad_masks=None, active_masks=None, available_actions=None):
@@ -95,24 +108,23 @@ class SeparatedReplayBuffer(object):
         self.step = (self.step + 1) % self.episode_length
         
     def modify_buffer(self, reset_list):
-        
-        self.share_obs = handle_zero_steps(self.share_obs, reset_list)
-        self.obs = handle_zero_steps(self.obs, reset_list)
-        self.rnn_states = handle_zero_steps(self.rnn_states, reset_list)
-        self.rnn_states_critic = handle_zero_steps(self.rnn_states_critic, reset_list)
-        self.actions = handle_zero_steps(self.actions, reset_list)
-        self.action_log_probs = handle_zero_steps(self.action_log_probs, reset_list)
-        self.value_preds = handle_zero_steps(self.value_preds, reset_list)
-        self.rewards = handle_zero_steps(self.rewards, reset_list)
+        self.reset_list = reset_list
+        self.share_obs = handle_zero_steps(self.share_obs, self.reset_list)
+        self.obs = handle_zero_steps(self.obs, self.reset_list)
+        self.rnn_states = handle_zero_steps(self.rnn_states, self.reset_list)
+        self.rnn_states_critic = handle_zero_steps(self.rnn_states_critic, self.reset_list)
+        self.actions = handle_zero_steps(self.actions, self.reset_list)
+        self.action_log_probs = handle_zero_steps(self.action_log_probs, self.reset_list)
+        self.value_preds = handle_zero_steps(self.value_preds, self.reset_list)
+        self.rewards = handle_zero_steps(self.rewards, self.reset_list)
 
-        self.masks = handle_zero_steps(self.masks, reset_list)
+        self.masks = handle_zero_steps(self.masks, self.reset_list)
         if self.bad_masks is not None:
-            self.bad_masks = handle_zero_steps(self.bad_masks, reset_list)
+            self.bad_masks = handle_zero_steps(self.bad_masks, self.reset_list)
         if self.active_masks is not None:
-            self.active_masks = handle_zero_steps(self.active_masks, reset_list)
+            self.active_masks = handle_zero_steps(self.active_masks, self.reset_list)
         if self.available_actions is not None:
-            self.available_actions = handle_zero_steps(self.available_actions, reset_list)
-
+            self.available_actions = handle_zero_steps(self.available_actions, self.reset_list)
 
     def chooseinsert(self, share_obs, obs, rnn_states, rnn_states_critic, actions, action_log_probs,
                      value_preds, rewards, masks, bad_masks=None, active_masks=None, available_actions=None):
@@ -322,9 +334,10 @@ class SeparatedReplayBuffer(object):
 
             yield share_obs_batch, obs_batch, rnn_states_batch, rnn_states_critic_batch, actions_batch, value_preds_batch, return_batch, masks_batch, active_masks_batch, old_action_log_probs_batch, adv_targ, available_actions_batch
 
-    def recurrent_generator(self, advantages, num_mini_batch, data_chunk_length):
+    def recurrent_generator(self, advantages, num_mini_batch, data_chunk_length, reset_list):
         episode_length, n_rollout_threads = self.rewards.shape[0:2]
-        batch_size = n_rollout_threads * episode_length
+        
+        batch_size = sum(reset_list)
         data_chunks = batch_size // data_chunk_length  # [C=r*T/L]
         mini_batch_size = data_chunks // num_mini_batch
 
@@ -337,25 +350,78 @@ class SeparatedReplayBuffer(object):
         rand = torch.randperm(data_chunks).numpy()
         sampler = [rand[i*mini_batch_size:(i+1)*mini_batch_size] for i in range(num_mini_batch)]
 
-        if len(self.share_obs.shape) > 3:
-            share_obs = self.share_obs[:-1].transpose(1, 0, 2, 3, 4).reshape(-1, *self.share_obs.shape[2:])
-            obs = self.obs[:-1].transpose(1, 0, 2, 3, 4).reshape(-1, *self.obs.shape[2:])
-        else:
-            share_obs = _cast(self.share_obs[:-1])
-            obs = _cast(self.obs[:-1])
-
-        actions = _cast(self.actions)
-        action_log_probs = _cast(self.action_log_probs)
-        advantages = _cast(advantages)
-        value_preds = _cast(self.value_preds[:-1])
-        returns = _cast(self.returns[:-1])
-        masks = _cast(self.masks[:-1])
-        active_masks = _cast(self.active_masks[:-1])
-        rnn_states = self.rnn_states[:-1].transpose(1, 0, 2, 3).reshape(-1, *self.rnn_states.shape[2:])
-        rnn_states_critic = self.rnn_states_critic[:-1].transpose(1, 0, 2, 3).reshape(-1, *self.rnn_states_critic.shape[2:])
+        print("self.share_obs_batch", np.shape(self.share_obs))
+        print("self.obs_batch", np.shape(self.obs))
+        print("self.actions", np.shape(self.actions))
+        print("self.action_log_probs", np.shape(self.action_log_probs))
+        print("self.value_preds", np.shape(self.value_preds))
+        print("self.advantages", np.shape(advantages))
+        print("self.returns", np.shape(self.returns))
+        print("self.masks", np.shape(self.masks))
+        print("self.active_masks", np.shape(self.active_masks))
+        print("self.rnn_states", np.shape(self.rnn_states))
+        print("self.rnn_states_critic", np.shape(self.rnn_states_critic))
+        
+        share_obs = delete_zeros(reset_list, self.share_obs[:-1])
+        obs = delete_zeros(reset_list, self.obs[:-1])
+        actions = delete_zeros(reset_list, self.actions)
+        action_log_probs = delete_zeros(reset_list, self.action_log_probs)
+        advantages = delete_zeros(reset_list, advantages)
+        value_preds = delete_zeros(reset_list, self.value_preds[:-1])
+        returns = delete_zeros(reset_list, self.returns[:-1])
+        masks = delete_zeros(reset_list, self.masks[:-1])
+        active_masks = delete_zeros(reset_list, self.active_masks[:-1])
+        rnn_states = delete_zeros(reset_list, self.rnn_states[:-1])
+        rnn_states_critic = delete_zeros(reset_list, self.rnn_states_critic[:-1])
+        
+        print("share_obs_batch", np.shape(share_obs))
+        print("obs_batch", np.shape(obs))
+        print("actions", np.shape(actions))
+        print("action_log_probs", np.shape(action_log_probs))
+        print("value_preds", np.shape(value_preds))
+        print("advantages", np.shape(advantages))
+        print("returns", np.shape(returns))
+        print("masks", np.shape(masks))
+        print("active_masks", np.shape(active_masks))
+        print("rnn_states", np.shape(rnn_states))
+        print("rnn_states_critic", np.shape(rnn_states_critic))
 
         if self.available_actions is not None:
-            available_actions = _cast(self.available_actions[:-1])
+            available_actions = delete_zeros(reset_list, self.available_actions[:-1])
+            
+        import itertools
+
+        # Use the itertools.chain() function to concatenate the elements of the arrays
+        share_obs = list(itertools.chain(*share_obs))
+        obs = list(itertools.chain(*obs))
+        actions = list(itertools.chain(*actions))
+        action_log_probs = list(itertools.chain(*action_log_probs))
+        value_preds = list(itertools.chain(*value_preds))
+        value_preds = list(itertools.chain(*value_preds))
+
+        advantages = list(itertools.chain(*advantages))
+        returns = list(itertools.chain(*returns))
+        masks = list(itertools.chain(*masks))
+        active_masks = list(itertools.chain(*active_masks))
+        rnn_states = list(itertools.chain(*rnn_states))
+        rnn_states_critic = list(itertools.chain(*rnn_states_critic))
+        
+        print("sum of list", sum(reset_list))
+        
+        print("share_obs_batch", np.shape(share_obs))
+        print("obs_batch", np.shape(obs))
+        print("actions", np.shape(actions))
+        print("action_log_probs", np.shape(action_log_probs))
+        print("value_preds", np.shape(value_preds))
+        print("advantages", np.shape(advantages))
+        print("returns", np.shape(returns))
+        print("masks", np.shape(masks))
+        print("active_masks", np.shape(active_masks))
+        print("rnn_states", np.shape(rnn_states))
+        print("rnn_states_critic", np.shape(rnn_states_critic))
+
+        if self.available_actions is not None:
+            available_actions = list(itertools.chain(*available_actions))
 
         for indices in sampler:
             share_obs_batch = []
@@ -392,6 +458,19 @@ class SeparatedReplayBuffer(object):
             L, N = data_chunk_length, mini_batch_size
 
             # These are all from_numpys of size (N, L, Dim)
+            print("share_obs_batch", np.shape(share_obs_batch))
+            print("obs_batch", np.shape(obs_batch))
+            print("actions_batch", np.shape(actions_batch))
+            print("available_actions_batch", np.shape(available_actions_batch))
+            print("value_preds_batch", np.shape(value_preds_batch))
+            print("return_batch", np.shape(return_batch))
+            print("masks_batch", np.shape(masks_batch))
+            print("active_masks_batch", np.shape(active_masks_batch))
+            print("old_action_log_probs_batch", np.shape(old_action_log_probs_batch))
+            print("adv_targ", np.shape(adv_targ))
+            print("rnn_states_batch", np.shape(rnn_states_batch))
+            print("rnn_states_critic_batch", np.shape(rnn_states_critic_batch))
+     
             share_obs_batch = np.stack(share_obs_batch)
             obs_batch = np.stack(obs_batch)
 
