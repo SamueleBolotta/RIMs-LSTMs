@@ -61,8 +61,7 @@ class SISLRunner(Runner):
                 
                 # insert data into buffer
                 self.insert(data)
-            print("steps reset", steps_reset)
-
+                
             for i, num in enumerate(steps_reset):
                 if num == 0:
                     steps_reset[i] = self.episode_length
@@ -228,7 +227,6 @@ class SISLRunner(Runner):
                                         masks[:, agent_id])
                                         
     def modify_buffer(self, reset_list):
-    
         for agent_id in range(self.num_agents):
             self.buffer[agent_id].modify_buffer(reset_list)    
 
