@@ -115,8 +115,12 @@ class R_Actor(nn.Module):
                 actor_features = hidden[0].view(hidden[0].size(0), -1)
                 rnn_states = hidden[1].view(hidden[1].size(0), 1, -1)
             elif self._use_lstm_policy:
-                actor_features, rnn_states = self.rnn(actor_features, rnn_states, masks)
+                print("forward: actor features before rnn", actor_features)
+                print("forward: rnn states before rnn", actor_features)
 
+                actor_features, rnn_states = self.rnn(actor_features, rnn_states, masks)
+                print("forward: actor features after rnn", actor_features)
+                print("forward: rnn states after rnn", actor_features)
         actions, action_log_probs = self.act(actor_features, available_actions, deterministic)
 
         return actions, action_log_probs, rnn_states
@@ -162,12 +166,12 @@ class R_Actor(nn.Module):
                 actor_features = hidden[0].view(hidden[0].size(0), -1)
                 rnn_states = hidden[1].view(hidden[1].size(0), 1, -1)
             elif self._use_lstm_policy:
-                print("actor features before rnn", actor_features)
-                print("rnn states before rnn", actor_features)
+                print("eval: actor features before rnn", actor_features)
+                print("eval: rnn states before rnn", actor_features)
 
                 actor_features, rnn_states = self.rnn(actor_features, rnn_states, masks)
-                print("actor features after rnn", actor_features)
-                print("rnn states after rnn", actor_features)
+                print("eval: actor features after rnn", actor_features)
+                print("eval: rnn states after rnn", actor_features)
 
         action_log_probs, dist_entropy = self.act.evaluate_actions(actor_features,
                                                                    action, available_actions,
