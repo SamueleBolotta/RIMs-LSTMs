@@ -135,9 +135,12 @@ class R_MAPPO():
         policy_loss = policy_action_loss
 
         self.policy.actor_optimizer.zero_grad()
-
+        
+        max_norm = 10
+        
         if update_actor:
             (policy_loss - dist_entropy * self.entropy_coef).backward()
+            torch.nn.utils.clip_grad_norm_(self.policy.actor.parameters(), max_norm)
 
         if self._use_max_grad_norm:
             actor_grad_norm = nn.utils.clip_grad_norm_(self.policy.actor.parameters(), self.max_grad_norm)
@@ -152,6 +155,7 @@ class R_MAPPO():
         self.policy.critic_optimizer.zero_grad()
 
         (value_loss * self.value_loss_coef).backward()
+        torch.nn.utils.clip_grad_norm_(self.policy.critic.parameters(), max_norm)
 
         if self._use_max_grad_norm:
             critic_grad_norm = nn.utils.clip_grad_norm_(self.policy.critic.parameters(), self.max_grad_norm)
