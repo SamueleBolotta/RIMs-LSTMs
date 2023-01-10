@@ -1,4 +1,5 @@
 import torch.nn as nn
+import torch
 from .util import init, get_clones
 
 """MLP modules."""
@@ -41,15 +42,10 @@ class MLPBase(nn.Module):
 
         obs_dim = obs_shape[0]
 
-        if self._use_feature_normalization:
-            self.feature_norm = nn.LayerNorm(obs_dim)
-
         self.mlp = MLPLayer(obs_dim, self.hidden_size,
                               self._layer_N, self._use_orthogonal, self._use_ReLU)
 
     def forward(self, x):
-        if self._use_feature_normalization:
-            x = self.feature_norm(x)
 
         x = self.mlp(x)
 
