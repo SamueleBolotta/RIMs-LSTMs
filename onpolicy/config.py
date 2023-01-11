@@ -191,7 +191,7 @@ def get_config():
 
     # network parameters
     parser.add_argument("--share_policy", action='store_false',
-                        default=True, help='Whether agent share the same policy')
+                        default=False, help='Whether agent share the same policy')
     parser.add_argument("--use_centralized_V", action='store_false',
                         default=True, help="Whether to use centralized V function")
     parser.add_argument("--stacked_frames", type=int, default=1,
@@ -223,8 +223,8 @@ def get_config():
     parser.add_argument("--data_chunk_length", type=int, default=10,
                         help="Time length of chunks used to train a recurrent_policy")
     parser.add_argument("--use_rims_policy_LSTM", action='store_false', default=False, help="use a RIMs policy with LSTM")
-    parser.add_argument("--use_rims_policy_GRU", action='store_false', default=True, help="use a RIMs policy with GRU")
-    parser.add_argument("--use_lstm_policy", action='store_false', default=False, help='use an LSTM policy')
+    parser.add_argument("--use_rims_policy_GRU", action='store_false', default=False, help="use a RIMs policy with GRU")
+    parser.add_argument("--use_lstm_policy", action='store_false', default=True, help='use an LSTM policy')
     
     # optimizer parameters
     parser.add_argument("--lr", type=float, default=5e-4,
@@ -236,11 +236,11 @@ def get_config():
     parser.add_argument("--weight_decay", type=float, default=0)
 
     # ppo parameters
-    parser.add_argument("--ppo_epoch", type=int, default=15,
+    parser.add_argument("--ppo_epoch", type=int, default=4,
                         help='number of ppo epochs (default: 15)')
     parser.add_argument("--use_clipped_value_loss",
                         action='store_false', default=True, help="by default, clip loss value. If set, do not clip loss value.")
-    parser.add_argument("--clip_param", type=float, default=0.2,
+    parser.add_argument("--clip_param", type=float, default=0.3,
                         help='ppo clip parameter (default: 0.2)')
     parser.add_argument("--num_mini_batch", type=int, default=1,
                         help='number of batches for ppo (default: 1)')
@@ -250,7 +250,7 @@ def get_config():
                         default=1, help='value loss coefficient (default: 0.5)')
     parser.add_argument("--use_max_grad_norm",
                         action='store_false', default=True, help="by default, use max norm of gradients. If set, do not use.")
-    parser.add_argument("--max_grad_norm", type=float, default=10.0,
+    parser.add_argument("--max_grad_norm", type=float, default=1.0,
                         help='max norm of gradients (default: 0.5)')
     parser.add_argument("--use_gae", action='store_false',
                         default=True, help='use generalized advantage estimation')
