@@ -42,19 +42,16 @@ Example installation. For non-GPU & other CUDA version installation, please refe
 
 ``` Bash
 # create conda environment
-conda create -n marl python==3.6.2
-conda activate marl
+virtualenv marl
+source marl/bin/activate
 pip3 install torch torchvision torchaudio --extra-index-url https://download.pytorch.org/whl/cu113
 pip install -r requirements.txt
 pip install -e .
-pip install absl-py 
-pip install gym 
-pip install wandb 
-pip install tensorboardX 
-pip install torch_ac 
-pip install imageio 
-pip install pyglet 
-pip install PIL 
+pip install box2d box2d-kengz
+pip install wandb
+pip install tensorboardX
+pip install imageio
+
 
 We recommend that the user try to install other required packages by running the code and finding which required package hasn't installed yet.
 
