@@ -98,11 +98,11 @@ class R_Actor(nn.Module):
         if available_actions is not None:
             available_actions = check(available_actions).to(**self.tpdv)
             
-        print("obs before base", obs)
+        print("main forward method: obs before base", obs)
         obs_isnan_mask = torch.isnan(obs)
-        print("nan mask obs", obs_isnan_mask)
+        print("main forward method: nan mask obs", obs_isnan_mask)
         obs_num_nans = torch.sum(obs_isnan_mask)
-        print("number of nans", obs_num_nans)
+        print("main forward method: number of nans", obs_num_nans)
         
         actor_features = self.base(obs)
 
@@ -149,7 +149,13 @@ class R_Actor(nn.Module):
 
         if active_masks is not None:
             active_masks = check(active_masks).to(**self.tpdv)
-
+            
+        print("evaluate actions: obs before base", obs)
+        obs_isnan_mask = torch.isnan(obs)
+        print("evaluate actions: nan mask obs", obs_isnan_mask)
+        obs_num_nans = torch.sum(obs_isnan_mask)
+        print("evaluate actions: number of nans", obs_num_nans)
+        
         actor_features = self.base(obs)
         
         if self._use_naive_recurrent_policy or self._use_recurrent_policy:
