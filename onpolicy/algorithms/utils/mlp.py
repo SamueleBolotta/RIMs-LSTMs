@@ -1,5 +1,6 @@
 import torch.nn as nn
 import torch
+import numpy as np
 from .util import init, get_clones
 
 """MLP modules."""
@@ -9,26 +10,56 @@ class MLPLayer(nn.Module):
         super(MLPLayer, self).__init__()
         self._layer_N = layer_N
 
-        active_func = [nn.Tanh(), nn.ReLU()][use_ReLU]
+        self.active_func = nn.LeakyReLU(0.1)
         init_method = [nn.init.xavier_uniform_, nn.init.orthogonal_][use_orthogonal]
-        gain = nn.init.calculate_gain(['tanh', 'relu'][use_ReLU])
+        gain = nn.init.calculate_gain('leaky_relu')
 
         def init_(m):
             return init(m, init_method, lambda x: nn.init.constant_(x, 0), gain=gain)
 
         self.fc1 = nn.Sequential(
-            init_(nn.Linear(input_dim, hidden_size)), active_func)
+            init_(nn.Linear(input_dim, hidden_size)))
+        
         self.fc_h = nn.Sequential(init_(
-            nn.Linear(hidden_size, hidden_size)), active_func)
+            nn.Linear(hidden_size, hidden_size)))
         self.fc2 = get_clones(self.fc_h, self._layer_N)
 
     def forward(self, x):
+        
+        assert not torch.any(torch.isnan(x))
+        num_nans1 = torch.sum(torch.isnan(x))
         print("forward mlp layer: x before fc1", x)
+        print("num nans before fc1", num_nans1)
+        
         x = self.fc1(x)
+        
+        assert not torch.any(torch.isnan(x))
+        num_nans2 = torch.sum(torch.isnan(x))
         print("forward mlp layer: x after fc1", x)
+        print("num nans after fc1", num_nans2)
+        
+        x = self.active_func(x)
+        
+        assert not torch.any(torch.isnan(x))
+        num_nans3 = torch.sum(torch.isnan(x))
+        print("forward mlp layer: x after active func", x)
+        print("num nans after active func", num_nans3)
+
         for i in range(self._layer_N):
             x = self.fc2[i](x)
+            
+            assert not torch.any(torch.isnan(x))
+            num_nans3 = torch.sum(torch.isnan(x))
             print("forward mlp layer: x after fc2", x)
+            print("num nans after fc1", num_nans3)
+            
+            x = self.active_func(x)
+            
+            assert not torch.any(torch.isnan(x))
+            num_nans3 = torch.sum(torch.isnan(x))
+            print("forward mlp layer: x after active func", x)
+            print("num nans after active func", num_nans3)
+
         return x
 
 
@@ -49,11 +80,5 @@ class MLPBase(nn.Module):
                               self._layer_N, self._use_orthogonal, self._use_ReLU)
 
     def forward(self, x):
-        print("forward mlp: x before mlp", x)
-        obs_isnan_mask = torch.isnan(x)
-        print("forward mlp: nan mask x", obs_isnan_mask)
-        obs_num_nans = torch.sum(obs_isnan_mask)
-        print("forward mlp: number of nans", obs_num_nans)
         x = self.mlp(x)
-        print("forward mlp: x after mlp", x)
         return x
