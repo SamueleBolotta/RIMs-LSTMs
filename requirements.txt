@@ -14,7 +14,7 @@ gym-notices==0.0.8
 Gymnasium==0.26.3
 gymnasium-notices==0.0.1
 idna==3.4
-imageio==2.22.3
+imageio==2.24.0
 numpy==1.23.4
 nvidia-cublas-cu11==11.10.3.66
 nvidia-cuda-nvrtc-cu11==11.7.99
@@ -48,4 +48,4 @@ torchaudio==0.13.0
 torchvision==0.14.0
 typing_extensions==4.4.0
 urllib3==1.26.12
-wandb==0.13.4
+wandb==0.13.8
